@@ -114,7 +114,7 @@ thor_equation_solver<-function(equation,
       ##### Solver starts here
       epsilon <- convergence
 
-          x_n<-as.vector(t_data[timeref,endogenous])
+          x_n<-as.vector(t_data[timeref,endogenous]) %>% unlist()
           x_n1<-as.vector(1)
 
           if(x_n == x_n1){x_n1<- x_n + 1 }
@@ -132,6 +132,7 @@ thor_equation_solver<-function(equation,
             inv_J_n<-as.matrix(solve(Jacobian_n, tol=10^-20, sparse=TRUE))
 
             x_n1<-x_n - (inv_J_n %*% f_x_n)
+            names(x_n1) <- names(x_n)
 
             n<-n+1
             if(n>20){

@@ -34,6 +34,7 @@ thor_solver<-function(model,
   #############
   ##1.checks
   ##############
+
  model = model
   assertthat::assert_that(convergence_criteria < 0.01)
   #check that data contains all variables used in model
@@ -173,15 +174,15 @@ thor_solver<-function(model,
 
         epsilon <- c(rep(convergence,length(s_endo)))
 
-        x_n<-as.vector(t_data[timeref,s_endo])
+        x_n<-as.vector(t_data[timeref,s_endo])%>% unlist()
         x_n1<-as.vector(c(rep(1,length(s_endo))))
 
-        if(sum(abs(x_n1-x_n)>c(rep(epsilon,length(x_n))))==0){x_n1<-as.vector(c(rep(2,length(s_endo))))}
+      if(sum(abs(x_n1-x_n)>epsilon)==0){x_n1<-as.vector(c(rep(2,length(s_endo))))}
 
         n=0 ##n number of iterations for convergence
-        while ( sum(abs(x_n1-x_n)>c(rep(epsilon,length(x_n))))>0 ){
+        while ( sum(abs(x_n1-x_n) > epsilon ) >0 ){
 
-          if (n>0) {
+                    if (n>0) {
             x_n<-x_n1
 
           if(length(s_endo)==1){t_data[timeref,s_endo]<-x_n1
@@ -199,7 +200,7 @@ thor_solver<-function(model,
           inv_J_n<-as.matrix(Matrix::solve(sparseJA, tol=10^-20, sparse=TRUE))
           # inv_J_n<-as.matrix(Matrix::solve(Jacobian_n, tol=10^-20))
           x_n1<-x_n - (inv_J_n %*% f_x_n)
-
+          names(x_n1) <- names(x_n)
           n<-n+1
         } ##convergence curl
 
