@@ -1,0 +1,1113 @@
+---
+title: "<b><br> tresthor <br> <i> <font size='5'>Package R pour la prévision économique</i></font>  </b ><br> <br>  Guide de l'utilisateur"
+output: 
+  rmarkdown::html_vignette:
+    number_sections: yes
+    css: style.css
+    toc: yes
+    df_print: paged
+vignette: >
+  %\VignetteIndexEntry{GuideUtilisateur}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+<i><font size='3'> par Anissa Saumtally </i></font>
+
+---
+
+
+
+<br>
+
+
+<i>Ce guide fait partie d'une série de trois guides sur tresthor :
+
+- Le [guide de l'utilisateur](https://www.tresor.economie.gouv.fr/Content/other/Opale/manuel_tresthor.html) présente en détail l'ensemble des fonctionnalités du package.
+- Le [guide d'utilisation du modèle Opale](https://www.tresor.economie.gouv.fr/Content/other/Opale/manuel_opale_r.html) en R par tresthor.
+- Le [guide appliqué de prévision](https://www.tresor.economie.gouv.fr/Content/other/Opale/application_tresthor_modele_uk.html) par tresthor avec un modèle simplifié sur le Royaume-Uni.</i>
+
+<br>
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tresthor)
+library(tidyverse)
+```
+
+
+Le package tresthor développé par la DG Trésor est un outil permettant de créer des modèles économiques, de les résoudre pour effectuer des prévisions et de les analyser. Il est mis à disposition du public afin d'éclairer sur les méthodes utilisées pour les prévisions économiques des projets de loi de finances et programmes de stabilités. Il peut être également utilisé à des fins pédagogiques pour mieux appréhender les mécanismes économiques suivant un modèle macroéconomique construit par l'utilisateur.
+
+* Les dépendances du package :
+  + `dplyr` et `Deriv`(seront chargés avec le package)
+  + `purrr`, `tidyr`, `stringr`, `ggplot2`
+  + `scales` , `splitstackshape`, `assertthat`,`stats`,`Matrix`,`cointReg`
+  + `Rcpp`, `RcppArmadillo`
+* Le package fonctionne sur R en version 4.0.2 ou ultérieure, et est compatible avec Microsoft Open R.
+
+* Pour faire fonctionner le solveur en mode Rcpp (entre autres), il peut être nécessaire d'installer Rtools sur Windows, et sur MacOS il faudra [XQuartz](https://www.xquartz.org) et soit XCode ou une version de [gfortran](https://github.com/fxcoudert/gfortran-for-macOS) pour avoir un compilateur C++ compatible.
+
+# Les Modèles
+
+## Quelques termes
+
+* Modèle : Un modèle est un système d'équations. Les équations servent à définir le comportement de l'économie. Dans l'exemple d'Opale, il y a deux types d'équations : des équations comptables et des équations comportementales. Les équations comptables servent à assurer l'équilibre comptable du modèle (par exemple : l'équilibre du PIB avec ses composantes calculées par le modèle). Les équations comportementales (en général économétriques) vont quant à elles définir les mécanismes et dynamiques de l'économie (par exemple la consommation des ménages dépend (entre-autres) du taux de chômage et du revenu disponible brut des ménages). 
+
+* Variables endogènes : Il s'agit des variables qui sont résolues par le modèle pour établir la prévision. Elle vont être calculées en fonctions des dynamiques du modèles, des variables exogènes et des coefficients.  
+
+* Variables exogènes : Il s'agit des variables à renseigner par l'utilisateur pour toutes les périodes. Le solveur les prend comme données et ne les modifie pas. Pour la prévision économique, il s'agit des variables que le prévisionniste peut moduler afin de refléter les hypothèses et jugements formulés pour orienter la prévision. 
+
+* Coefficients : Dans le contexte du package, le terme de coefficient correspond aux coefficients économétriques des équations économétriques du modèle. Il est supposé que ceux-ci ne changent pas sur l'ensemble des observations, bien qu'il soit possible en théorie de renseigner manuellement des valeurs différentes selon les périodes.
+
+## L'objet modèle `thoR.model`
+L'objet modèle, de la classe (S4) `thoR.model` définie dans le package, est central au fonctionnement de `tresthor`. Il contient les attributs suivants :
+
+* `model_name` : le nom du modèle.
+
+* `equation_list` : un data.frame contenant toutes les équations avec diverses informations (*i.e.* : leur index (`id`), leur `noms`, leur position dans le système et différentes versions de leurs formules. 
+
+* Les vecteurs contenant le noms des variables par type de variable. Ces vecteurs sont utiles pour extraire les variables d'intérêt d'une base données. Par exemple : `mon_data_frame[,mon_modele@exo_list]`.
+
+  + `endo_list` : les variables endogènes du modèle.
+  + `exo_list` : les variables exogènes du modèle.
+  + `coeff_list` : les coefficients économétriques du modèle.
+
+* Le détail de chaque bloc du modèle décomposé par l'algorithme (voir [la section concernée](#algo))
+
+  + Des éléments logiques qui renseignent sur l'existence de chaque bloc : `prologue`,`heart`,`epilogue`.  
+  + Les matrices des jacobiennes symboliques de chaque bloc : `prologue_jacobian`,`heart_jacobian`,`epilogue_jacobian`.  
+  + Les vecteurs contenant les variables endogènes résolues dans chaque bloc : `prologue_endo`,`heart_endo`,`epilogue_endo`.
+  + Les fonctions de passage du symbolique au numérique pour les équations et les matrices jacobiennes de chaque bloc :  `prologue_equations_f`, `heart_equations_f`, `epilogue_equations_f`, `prologue_jacobian_f`, `heart_jacobian_f`, `epilogue_jacobian_f`.
+  + Un indicateur `algo` pour savoir si l'algorithme de décomposition a été utilisé lors de la création du modèle.
+
+* Les informations sur l'utilisation de Rcpp : `rcpp` permet de savoir si les fonctions du modèle ont été traduites en Rcpp lors de la création du modèle et `rcpp_source` spécifie l'emplacement du fichier Rcpp correspondant au modèle (ce fichier s'appelle `[nom_du_modele]_pomme_newton.cpp`).
+
+* `var_map` est la liste des variables du modèle avec leur type et les équations où elles apparaissent.
+
+  + `names(model@var_map)` permet de récupérer rapidement un vecteur contenant l'ensemble des variables du modèle.
+
+* `variables_matrix` est un data.frame qui liste pour chaque équation les variables endogènes qui apparaissent sans retard dans l'équation (ce sont les endogènes contemporaines qui sont résolues par ces équations).  
+  
+## L'algorithme de décomposition de modèle {#algo}
+
+La résolution de modèle passe par un [algorithme de Newton-Raphson](https://fr.wikipedia.org/wiki/Méthode_de_Newton), ce qui implique l'inversion des matrices jacobiennes et une convergence de toutes les équations. Sur les modèles larges (qui contiennent un grand nombre d'équations), cela peut poser des problèmes car on se retrouve avec des matrices très larges (500x500 pour un modèle à 500 équations) et une solution convergente peut alors être difficile à atteindre. Afin de pouvoir résoudre les modèles larges, un algorithme[^n1] permettant de décomposer ces modèles en trois sous-blocs peut être utilisé. Ces trois blocs sont ensuite résolus séquentiellement :
+
+* Le *prologue* contient les équations et les variables endogènes concernées qui peuvent être résolues en premier lieu indépendemment des autres variables (après que les premières variables du prologue sont calculées, si d'autres variables peuvent être résolues directement, elle font également parties du *prologue*).
+
+* Le *coeur* du modèle concerne les variables interdépendantes qui doivent être résolues en même temps. L'algorithme utilisé ne détermine qu'un seul coeur, même s'il peut exister à l'intérieur de celui-ci plusieurs blocs d'équations simultanées indépendants les uns des autres.
+
+* L'*epilogue* contient les équations et les variables qui peuvent être résolues simplement une fois que les variables du *coeur* sont calculées.
+
+
+D'autres algorithmes décomposant les modèles en davantage de blocs peuvent être envisagés et seront à l'étude pour les améliorations du package à venir. Cependant, si augmenter le nombre de blocs permet de créer des blocs plus petits (et donc résolus plus rapidement), cela augmente le nombre d'itérations dans la résolution du modèle, donc un optimum sera à déterminer en fonction de la taille du modèle.
+
+[^n1]: L'algorithme de décomposition utilisé dans tresthor a été développé par Eric Dubois. 
+
+
+## Construction du modèle : `create_model()`
+
+La construction de modèle `thoR.model` passe par la fonction `create_model()`. Il y a deux manières de construire les modèles : soit manuellement en renseignant chaque composante du modèle, soit en passant par un input externe au format défini. Pour les modèles les plus larges, il est recommandé de passer par cette méthode. Les arguments de la fonction à renseigner sont :
+
+* `model_name` : le nom que l'on veut donner à l'objet créé.
+* `model_source` : le chemin d'accès au fichier texte si on souhaite créer le modèle par cette méthode.
+* `algo` : indiquer TRUE si on souhaite utiliser l'algorithme de décomposition de modèle (conseillé pour les modèles larges à plus de 100 équations) (TRUE par défaut)
+* `rcpp` : indiquer TRUE si on souhaite créer une version du modèle compatible avec le solveur Rcpp pour des résolutions plus rapide sur les modèles larges. (FALSE par défaut)
+* `rcpp_path` : le dossier où l'on souhaite stocker le fichier rcpp du modèle (par défaut il s'agit du répertoire de travail).
+* `endogenous` : Si le modèle est renseigné manuellement, il faut indiquer ici les variables endogènes du modèle sous la forme d'un vecteur. L'argument est ignoré si un `model_source` est renseigné.
+* `exogenous` : Si le modèle est renseigné manuellement, il faut indiquer ici les variables exogènes du modèle sous la forme d'un vecteur. L'argument est ignoré si un `model_source` est renseigné. 
+* `coefficients` : Si le modèle est renseigné manuellement, il faut indiquer ici les coefficients du modèle sous la forme d'un vecteur. L'argument est ignoré si un `model_source` est renseigné. 
+* `equations` : Si le modèle est renseigné manuellement, il faut indiquer ici les équations du modèle sous la forme d'un vecteur. L'argument est ignoré si un `model_source` est renseigné.
+* `env` : l'environnement dans lequel l'objet modèle sera créé. (par défaut il s'agit de globalenv())
+
+### Création de modèle à partir d'un fichier texte
+
+La méthode la plus simple consiste à créer un fichier texte qui contient l'objet modèle. Pour visualier rapidement le format attendu, on peut utiliser la fonction `model_source_example()`. L'exemple présenté peut servir de structure de base.
+
+Le fichier texte s'organise ainsi :
+
+* ligne 1 : contient le mot "endo"
+* ligne 2 : lister les variables endogènes sans guillemets et séparées par une virgule
+* ligne 3 : vide (mettre des commentaires éventuellement, cette ligne n'est pas lue par la fonction)
+* ligne 4 : contient le mot "exo"
+* ligne 5 : lister les variables exogènes sans guillemets et séparées par une virgule
+* ligne 6 : vide (mettre des commentaires éventuellement, cette ligne n'est pas lue par la fonction)
+* ligne 7 : contient le mot "coeff"
+* ligne 8 : lister les coefficients sans guillemets et séparés par une virgule
+* ligne 9 : vide (mettre des commentaires éventuellement, cette ligne n'est pas lue par la fonction)
+* ligne 10 : contient le mot "equation"
+* lignes 11 et au delà : écrire ligne par ligne les équations du modèles selon les [règles syntaxiques](#regles_equations) .
+
+Voici l'exemple de modèle correctement écrit dans un fichier .txt:
+
+```{r show_model , echo = FALSE,comment=NA}
+cat(readLines(model_source_example(TRUE)), sep = '\n')
+```
+
+Pour créer un modèle à partir d'un fichier texte :
+
+```{r create_model_1, eval = FALSE}
+## Création rapide
+create_model(model_name = "mon_modele",
+             model_source = "mon_dossier/modele.txt")
+
+## Creation détaillée
+create_model(model_name = "mon_modele",
+             model_source = "mon_dossier/modele.txt",
+             algo = FALSE, rcpp = TRUE , rcpp_path = "mon_dossier/sousdossier_rcpp")
+
+```
+
+### Création manuelle de modèle
+
+En l'absence de fichier externe, on peut également créer manuellement le modèle :
+
+```{r create_model_2, eval = FALSE}
+## Création manuelle
+create_model(model_name = "mon_modele_manuel",
+             endogenous = c("x","y","z"),
+             exogenous = c("a","b","c"),
+             coefficients = c("coef_1", "coef_2"),
+             equations = c(
+               "delta(1,log(x)) = 0.5* delta(1,log(a)) - 0.2 * delta(1,log(z))",
+               "mon_equation1 :delta(1,log(y)) = coef_1 + coef_2 * delta(1,log(b)) - 0.3 * lag(x,1)",
+               "calcul_de_z:z = lag(c,1) + x + y")  ) 
+
+```
+
+### Indexation et noms de variables 
+
+Lors de la création du modèle, les équations sont indexées par un index ayant en préfixe `eq_##`, et si des noms d'équations ont été spécifiés, ils sont également attribués. Les équations possèdent donc un index générique (id) et un nom. Si une équation n'a pas de nom spécifié, le nom attribué sera l'index.
+
+Pour spécifier un nom : il faut précéder l'expression de l'équation par `nom:`, ex : `conso : delta(1,log(conso))=a+b*log(c)`. Si des noms sont répétés, la fonction attribue un `_2` aux doublons.
+
+Pour visualiser cela, en utilisant l'exemple générique de modèle : 
+
+```{r visualisation_eq1, include=FALSE,echo=FALSE}
+## Création manuelle
+create_model(model_name = "model_source_example",
+             model_source = model_source_example(TRUE)  ) 
+
+```
+
+```{r visualisation_eq, echo=TRUE,eval=FALSE}
+## Création manuelle
+create_model(model_name = "model_source_example",
+             model_source = model_source_example(TRUE)  ) 
+
+```
+
+```{r visualisation_eq_3, echo=TRUE}
+model_source_example@equation_list %>% select(id,name,equation) 
+
+```
+
+## Règles d'écriture de modèle
+
+L'ensembe des fonctionnalités du package, de la création des modèles et équations à leur résolution, repose sur des lecteurs syntaxiques qui permettent l'analyse du texte et leur transformation. Il convient de suivre quelques règles pour spécifier correctement les équations et les variables.
+
+### Respecter la casse
+
+Le langage R est sensible à la casse. Pour éviter tout bug lié au problème de majuscules et miniscules, les variables du modèle ainsi que les équations sont systématiquement transformées en minuscules, et de même pour les fichiers modèles. Il convient donc d'ajuster le nom des variables dans la base de données en appliquant la même transformation de façon à pouvoir mobiliser les données pour l'utilisation du solveur et autres fonctionnalités.
+
+
+### Nommer (correctement) les variables 
+
+Les caractères acceptés pour les variables sont : les lettres minuscules, les chiffres et les underscore (ensemble regex : `[a-z0-9_]`). Le premier caractère doit être une lettre (minuscule).
+
+### Les équations {#regles_equations}
+
+1. Les équations peuvent contenir les opérateurs suivants : ` + / * - ^` . Une multiplication doit être signalée par un `*` : 
+
+  + `x = a*(b+c)` est correct.
+  + `x = a(b+c)` n'est pas correct.
+  
+2. Elles doivent contenir un et un seul signe `=`.
+
+3. Dans un `thoR.model`, pour nommer une équation, il faut écrire le nom de l'équation suivi de `:` . Cette pratique ne s'applique pas pour la création d'équation `thoR.equation` car le nom est à renseigner dans la fonction.
+
+  + ` equation_conso:delta(1,log(conso))=a+b`
+  
+4. Les différences s'écrivent au format `delta(n,variable)` , où `n` est un entier positif, et `variable` est la variable avec une transformation au besoin. Des multiples transformations peuvent ne pas être prises en compte. 
+
+  + `delta(1,log(conso) = a +b` fonctionnera.
+  + `delta(1,log(conso/lag(ipc,1)))= a +b` risque de poser problème. 
+  + `delta(1,x)` équivaut à écrire `x - lag(x,1)`
+  
+5. Les variables retardées sont à signaler avec `lag(x,n)` où x est la variable et n le retard à appliquer, avec ou sans signe `-`. Les deux seront interprétés de la même manière. Les lag ne doivent contenir que la variable. En cas de composition avec une fonction, le lag s'écrit au plus près de la variable. De même en cas de variable composée, il faut détailler tous les lags, ou alors créer une variable synthétique.
+  + `log(lag(conso,1))` et non pas `lag(log(conso),1)`.
+  + `lag(conso,1)/lag(ipc,1)` et non pas `lag(conso/ipc,1)`. Le plus simple étant de définir une variable dans une équation `conso_reelle = conso/ipc` puis d'écrire `lag(conso_reelle,1)`. Cette pratique est d'ailleurs recommandée pour permettre la bonne utilisation des fonctions d'analyse du package du type contributions dynamiques ou estimation rapide de coefficients.
+  
+6. Plusieurs fonctions mathématiques sont supportées. Il s'agit des fonctions à un argument prises en charge par le package `Deriv` qui permet de calculer les dérivées symboliques. Elles sont visualisables dans le vecteur par `thor_functions_supported`.
+  + `r thor_functions_supported`
+
+### Identification adéquate du modèle
+
+Le modèle devra être correctement identifié. La fonction `create_model()` vérifie cela, et signale en cas d'erreur. Un modèle correctement identifié contient :
+
+* autant d'équations que d'endogènes
+* chaque équation contient au moins une endogène
+* l'ensemble des équations doit permettre de résoudre l'ensemble des endogènes 
+
+## Parcourir le modèle
+
+Les différents attributs de l'objet modèle permettent de mieux comprendre la construction de celui-ci. Par exemple, la décomposition en trois blocs permet d'avoir une idée des variables qui sont calculées à la fin et donc davantage affectées par les autres endogènes.
+
+Des fonctions permettent d'accéder directement aux informations du modèle par équation ou par variable.
+
+* La fonction `equation_info_model()` prend en argument un vecteur contenant des noms ou index d'équation, ainsi que le modèle en question, et retourne les informations de chacune de ces équations.
+
+* La fonction `var_info_model()` prend en argument un vecteur contenant des variables du modèle, ainsi que le modèle en question, et retourne les informations de chacune de ces variables.
+
+```{r interrogation_mod}
+equation_info_model(c("equilibrium","eq_1"),model_source_example)
+
+var_info_model(c("endovar4","cf3"),model_source_example)
+```
+
+## Modifications de modèles
+
+A partir d'un modèle existant, il est possible de modifier ce dernier :
+
+* En intervertissant des variables endogènes et exogènes : `model_endo_exo_switch()`. Il faut spécifier autant d'endogènes que d'exogènes et la fonction vérifie que la nouvelle version du modèle est correctement identifiée. Cette fonction est particulièrement utile pour créer des modèles inversés utilisés notamment lorsqu'il faut calculer les variables résiduelles sur le passé en conservant la valeur observée des variables d'intérêt. 
+
+* En ajoutant des équations de type `thoR.equation` : `model_equations_add()`
+
+* En enlevant des équations en spécifiant le nom ou l'index : `model_equations_remove()`. Il faut alors spécifier quelles sont les endogènes à retirer. Si les endogènes en question apparaissaient dans d'autres équations, elles deviennent des variables exogènes du modèle.
+
+Ces fonctions créent un nouvel objet modèle dont le nom est à spécificier dans l'argument `new_model_name`. Il est possible de spécifier l'utilisation de Rcpp et de la décomposition du système comme dans `create_model()`.
+
+Exemples d'utilisation :
+
+```{r model_mod, eval = FALSE }
+
+model_endo_exo_switch(base_model = model_source_example,
+                      new_model_name = "mse_version2",
+                      new_endo = c("exovar2"),
+                      new_exo= c("endovar2"))
+
+model_equations_remove(base_model = model_source_example,
+                       new_model_name = "mse_version3",
+                       equations_to_remove = c("eq_2") ,
+                       endos_to_remove = c('endovar2')) ## Dans ce exemple endovar2 deviendra une variable exogène
+
+##On crée une nouvelle équation
+create_equation('new_equation',formula = "new_var = cf_4 *exovar2/endovar3",endogenous = "new_var",coefflist = c('cf_4'))
+
+##On l'ajoute au modèle
+model_equations_add(base_model = model_source_example,
+                    new_model_name = "mse_version4",
+                    thor_equations_add = list(new_equation))
+```
+
+## Sauvegarde de modèle
+
+* La fonction `save_model()` permet de sauvegarder un objet `thoR.model` au format .rds pour réutilisation future. Elle prend en argument l'objet `thoR.model` ainsi que le chemin d'accès souhaité (par défaut il s'agit du répertoire de travail).
+
+* La fonction `load_model()` permet de charger un modèle existant. S'il a été créé avec `rcpp=TRUE`, alors les fonctions Rcpp spécifiques au modèle seront compilées à cette étape si besoin.
+
+* La fonction `export_model()` permet d'exporter un modèle existant au format .txt réutilisable par `create_model()`. Cette fonction est utile si le modèle a été créé manuellement ou a subit des modifications.
+
+```{r save_model, eval = FALSE}
+save_model(mse_version3,folder_path = "mes_modeles")
+
+##Deux manières de charger un modèle : nom + dossier
+load_model(model = "mse_version3",folder_path = "mes_modeles")
+load_model(file = "mes_models/mse_version3.rds")
+
+export_model(mse_version4,filename = "mes_modeles/nouveau_mod.txt")
+
+```
+
+# Résolution du modèle
+
+## Les données {#donnees}
+
+Une fois le modèle créé et avant de pouvoir le résoudre, il faut s'assurer d'avoir une base de données compatible. Le solveur établit des vérifications sur la base et signale les problèmes. Voici une checklist pour constituer la base de données :
+
+* La base doit contenir toutes les variables du modèle. Pour vérifier cela : `setdiff(names(model@var_map),names(database))` doit être vide. Une fonction améliorée pour réaliser ce diagnostique est `data_model_checks()`([voir la section](#verifdonnees)). Il faut vérifier la casse dans les noms des variables de la base ; `tresthor` ne fonctionnant qu'avec des lettres miniscules. 
+
+* Les exogènes doivent être renseignées sur toute la période de prévision, de même pour les coefficients. Pour vérifier cela, utiliser la fonction `na_report_variables_times()` qui permet de vérifier si les variables sont manquantes sur certaines périodes ([voir la section](#verifdonnees)).
+
+* Si le modèle fait appel à des variables retardées, il faut suffisamment d'observations sur le passé pour ces variables.
+
+* Le solveur utilise l'observation n-1 pour initialiser ses calculs. Cela signifie qu'il faut au minimum une observation passée complète (qui ne produit pas de NA ou NaN) et plus en cas de présence de variables retardées dans les équations du modèle.
+
+* La base de données doit contenir une colonne qui sert d'indicateur temporel (l'argument s'appelle `index_time` sur l'ensemble du package). Un indicateur temporel peut prendre n'importe quel format du moment que : 
+
+  + les observations sont rangées par ordre croissant (si on utilise la classe `Date` ou un indicateur numérique), alphabétique sinon, 
+  + toutes les observations sont renseignées pour cette colonne (pas de NA)
+  + il n'y a pas de doublons.
+  + si l'indicateur temporel est au format `Date`, la fonction `reformat_date()` permet de tranformer les dates en chaînes de caractère, avec un format visuellement plus confortable pour les données annuelles, semestrielles, trimestrielles et mensuelles. Quelques exemples ci dessous ([voir aussi pour un autre exemple appliqué](#don_conso_ex)) :
+
+```{r format_date}
+dates_annuelles <- seq.Date(as.Date("2010-01-01"), by="year", length.out = 5)
+print(dates_annuelles)
+cat(reformat_date(dates_annuelles))
+
+dates_semestrielles <- seq.Date(as.Date("2010-01-01"), by="6 month", length.out = 5)
+print(dates_semestrielles)
+cat(reformat_date(dates_semestrielles))
+
+dates_trimestrielles <- seq.Date(as.Date("2010-01-01"), by="quarter", length.out = 5)
+print(dates_trimestrielles)
+cat(reformat_date(dates_trimestrielles))
+
+dates_mensuelles <- seq.Date(as.Date("2010-01-01"), by="month", length.out = 5)
+print(dates_mensuelles)
+# les mois s'afficheront dans la langue de l'installation de R de l'utilisateur
+# puisque l'ordre alphabétique ne sera pas conservé, on ne peut pas utiliser ce format pour les données mensuelles comme indicateur temporel
+cat(reformat_date(dates_mensuelles)) 
+
+```
+
+  
+### Fonctions de vérification des données {#verifdonnees}
+
+Ces trois fonctions sont mises à disposition de l'utilisateur afin de pouvoir tester si les données sont suffisantes et repérer des problèmes éventuels sur la base.
+
+  * `data_model_checks()` vérifie que toutes les variables du modèle sont dans la base de données. Elle retourne un élément logique : `TRUE` si toutes les données sont présentes, `FALSE` sinon. La fonction indique quel type de variables manque ainsi que le nom de ces variables. La fonction prend en argument une base de données et un objet `thoR.model` ou `thoR.equation`.
+  
+  * `na_report_variables_times()` vérifie qu'un set de variables est bien renseigné sur toutes les périodes demandées (sans `NA` donc). La fonction retourne le set de variables pour lesquelles des `NA` (observations manquantes) ont été trouvées.
+  
+  * `times_solver_test_run()` permet de tester si le solveur peut fonctionner sur des périodes demandées. Cette fonction ne résout pas de modèle, mais fait juste tourner les fonctions de passage du symbolique au numérique du modèle. Elle permet de tester  si les calculs peuvent être effectués avec les données d'une base. Un diagnostique utile fourni par cette fonction est de détecter si certaines variables ont des valeurs en dehors du domaine de définition des fonctions qui les mobilisent (par exemple des 0 alors que la variable est utilisée en logarithme.) .
+
+### Ajouts de coefficients
+
+Si les coefficients sont manquants mais estimés ailleurs, ils peuvent être ajoutés avec la fonction `add_coeffs()`. Cette fonction prend en argument un data.frame contenant les noms et valeurs des coefficients, la base de données cible et retourne une base de données avec les coefficients ajoutés sur toutes les périodes.
+
+Les arguments `pos.coeff.name` et `pos.coeff.value` servent à indiquer les colonnes de la base de données des coefficients qui contiennent respectivement les noms et valeurs de ceux-ci. On peut renseigner la position de la colonne dans le data.frame ou bien le nom lui-même.
+
+```{r add_coeff, eval = FALSE}
+coeff_df <- data.frame(name  = c("coeff1","coeff2"),
+                       value = c(0.23,0.78) )
+
+donnees_completes <- add_coeffs(listcoeff = coeff_df, database = donnees_base , 
+                                pos.coeff.name = 1, pos.coeff.value = 2, ##Specifier les colonnes où se trouvent le nom des coefficients et leur valeur.
+                                overwrite = TRUE) #Pour remplacer les anciennes valeurs des coefficients 
+
+
+```
+
+## Le solveur : `thor_solver()`
+
+Avec le modèle et les données en place, il ne reste plus qu'à lancer la résolution du modèle. 
+
+La fonction `thor_solver()` prend en argument :
+ 
+* `model` : le `thoR.model` à utiliser.
+
+* `first_period` : la première période de projection. Attention à ne pas donner la période correspondant à la première observation de la base de données.
+
+* `last_period` : la dernière période de projection.
+
+* `main_variable` : un argument optionnel qui permet de visualiser directement les résultats du solveur sur cette variable. A associer avec l'argument `main_variable_fx` qui est une fonction à appliquer sur cette variable.
+
+  + Un cas d'usage de cette option avec un modèle macroéconomique où la variable d'intérêt est le PIB mais on s'intéresse surtout à son taux de croissance. On précisera alors `main_variable = pib` et `main_variable_fx = function(x){100*((x/dplyr::lag(x))-1)}`,
+  
+* `database` : la base de données complète
+
+* `index_time` : la variable qui sert d'indicateur temporel (first_period et last_period doivent en faire partie). Voir la [section sur les données](#donnees) pour en savoir plus sur les contraintes sur cette variable. Par défaut, cette variable est "*date*". 
+
+* `convergence_criteria` : le critère de convergence (par défaut il est de 1e-9). Pour des modèles complexes, il est conseillé d'en rester à ce niveau. R et l'algorithme de Newton-Raphson montreront leurs limites à partir de 1e-14 même pour les plus petits modèles.
+
+* `dynamic_convergence` : le nombre maximum d'itérations (par défaut 10) dont le solveur dispose pour tenter de converger avant d'augmenter le critère de convergence :
+  + Pour chaque bloc et chaque période le solveur tentera de résoudre le système avec le critère de convergence imposé. Si au bout du nombre de périodes spécifié la convergence n'est pas atteinte, alors le critère est multiplié par 10 pour faciliter la résolution. Le critère de convergence revient à sa valeur fixée dans les arguments pour chaque bloc à chaque période où un algorithme de Newton est initialisé.
+  + L'option `adv_diag` permet de publier dans la console le critère de convergence maximal que le solveur a utilisé pendant les résolutions.
+  
+* `rcpp` : si le solveur doit mobiliser la version Rcpp du modèle (possible que si le modèle a été créé avec l'option `rcpp = TRUE`). Il compilera alors au besoin les fonctions Rcpp qui ont été créées pour résoudre le système.
+
+
+Pour résoudre le modèle, le solveur charge le modèle et les fonctions spécifiques créées. Puis, il résout par un algorithme de Newton-Raphson chaque bloc à chaque période, en se basant sur l'observation précédente comme critère d'initialisation. Les périodes sont estimées séquentiellement de manière à prendre en compte les estimations des endogènes sur les périodes antérieures, si celles-ci font partie de l'horizon de projection demandé.
+
+La fonction retourne la base de données avec les endogènes modifiées par leurs valeurs en prévision.
+
+Voici un exemple d'utilisation de la fonction avec les arguments indispensables :
+
+```{r thor_solver, eval = FALSE}
+donness_prevision <- thor_solver(model_source_example, 
+                                first_period = "2000Q1", last_period = "2020Q4",
+                                database = mes_donnees, index_time = "dateQ" )
+```
+
+### Améliorer les performances du solveur
+
+Pour les modèles larges comme Opale, la résolution peut prendre du temps en fonction de la puissance de l'ordinateur utilisé. Voici quelques pistes pour améliorer les vitesses de calcul.
+
+* Pour le plus petits modèles, l'utilisation de la décomposition du modèle peut être contre-productive car cela implique trois fois plus d'itérations, alors que le gain de temps sur le calcul des matrices inverses est minimal. Il est donc conseillé pour les petits modèle de se passer de l'algorithme (`algo = FALSE`) lors de la création du modèle.
+
+* Pour les modèles les plus larges, la décomposition est indispensable, elle permet de réduire significativement la taille des matrices jacobiennes.
+
+* L'utilisation de Rcpp (`rcpp= TRUE` dans le solveur et la création du modèle) fait gagner un temps considérable à la résolution des modèles larges. 
+  + Il y a un coût fixe à la compilation des fonctions Rcpp au chargement du modèle, qui peut être largement neutralisé si la projection s'effectue au long terme.
+  + à l'inverse si la projection ne doit se faire que sur quelques périodes (3 ou 4), alors il peut être préférable de ne pas utiliser l'option Rcpp.
+  + Par ailleurs, les fonctions Rcpp compilées dans une session R restent en mémoire (même si l'environnement global est vidé), donc si plusieurs sont mobilisés et que de ce fait les fonctions Rcpp actives sont remplacées, si la session R n'a pas été redémarrée alors la mobilisation des modèles précédents ne prend pas de temps supplémentaire.
+  
+* Le critère de convergence augmenté peut diminuer le nombre d'itérations. Attention à ne pas trop l'augmenter non plus sinon les résultats n'ont plus trop de sens.
+
+* L'utilisation de [Microsoft R Open](https://mran.microsoft.com/open) (disponible en version 4.0.2) est particulièrement pertinente dans le cas des modèles larges et avec Rcpp. Cette distribution de R fonctionne comme R 4.0 mais elle est optimisée pour le calcul algébrique. Couplée à l'utilisation de Rcpp, nous avons obtenus des gains de performance de facteur 200 sur une même résolution pour Opale (projection sur 150 périodes réalisée en moins de 1 seconde). 
+
+
+### Utilisation en dehors de l'analyse économique
+
+Il est possible d'utiliser les solveurs de `tresthor` pour résoudre des systèmes d'équations ou des équations isolées (linéaires ou non linéaires, dynamiques ou statiques) du moment que ceux-ci répondent au critère d'identification du modèle attendu.
+
+Mise à part la construction du modèle ou de l'équation, il faudra juste déterminer une condition d'initialisation valide (*i.e.* qui répond aux domaines de définition des fonctions du modèle). Le solveur utilise la base de données pour déterminer la condition d'initialisation pour la résolution : il prend la dernière observation avant la première période de résolution.
+
+Il convient donc de créer une base donnée qui contiendra au moins 2 observations (plus si le système est dynamique et prend des données sur le passé) : la première (obs = 0 dans l'exemple ci-dessous) contiendra des valeurs d'initialisation valides et la deuxième (obs = 1 dans l'exemple ci-dessous) contiendra par la suite les résultats du solveur, ainsi que les valeurs des exogènes et coefficients s'il y en a.
+
+```{r system_expr , include=FALSE}
+sys_eq <-  noquote(paste(expression("a + log(b) = 2\\\\a + c = 4\\\\log(b) + c = 3")))
+eq <-  noquote(paste(expression("log(x) + x = 4 + exo_1")))
+
+```
+L'exemple ci-dessous permet de résoudre le système suivant :
+$$
+\begin{cases} `r sys_eq` \end{cases}
+$$
+
+
+```{r exemple_resolution_systeme_eval , results='hide'}
+create_model(model_name = "exemple",
+             equations = c("a + log(b) = 2",
+                           "a + c = 4",
+                           "log(b) + c = 3"),
+                           endogenous = c("a","b","c") ,algo = FALSE)
+
+donnees <- data.frame(obs = c(0,1), ## obs servira d'indicateur de temps
+                        a = c(0,NA),
+                        b = c(1,NA), ## b est utilisée en log donc 0 n'est pas une valeur initiale valide 
+                        c = c(0,NA) )
+
+solution <- thor_solver(exemple,first_period = 1,last_period = 1,
+                          database = donnees , index_time = "obs") %>% 
+            filter(obs == 1) %>% select(all_of(exemple@endo_list))
+
+
+```
+
+Cela produit la solution suivante : 
+
+```{r print_solution , echo = FALSE}
+plop_sol <- paste( names(solution),"=", round(solution[1,],4),collapse = "\\\\" )
+solution_exp <- noquote(paste(plop_sol))
+```
+$$
+\begin{cases} `r solution_exp` \end{cases}
+$$
+Le même processus peut être utilisé pour résoudre des équations, par exemple :
+$$
+`r eq` 
+$$
+
+```{r exemple_resolution_equation_eval , results='hide'}
+create_equation("eq_exemple",
+                formula = "log(x) + x = 4 + exo_1",
+                endogenous = "x")
+
+donnees <- data.frame(obs = c(0,1), ## obs servira d'indicateur de temps
+                        x = c(1,NA),
+                    exo_1 = c(2,2)) ## bien renseigner la valeur de l'exogène sur les deux observations, celle de obs = 1 est utilisé pour la résolution
+
+solution <- thor_equation_solver(eq_exemple,first_period = 1,last_period = 1,
+                          database = donnees , index_time = "obs") %>% 
+            filter(obs == 1) %>% select(paste0(eq_exemple@endogenous,".simul"))
+
+
+```
+
+Cela produit la solution suivante : 
+
+```{r print_solution_equation , echo = FALSE}
+plop_sol <- paste( eq_exemple@endogenous,"=", round(solution[1,1],4) )
+solution_exp <- noquote(paste(plop_sol))
+```
+$$
+`r solution_exp`
+$$
+Si l'équation à résoudre ne contient aucune variable exogène ni aucun coefficient, et qu'elle est statique (pas de valeurs retardées), c'est-à-dire que la formule ne contient que des chiffres et la variable endogène au temps $t$, alors on peut utiliser la fonction `quick_solve()`. Elle prend en argument la formule (mêmes contraintes syntaxiques que pour les autres fonctions), le nom de l'endogène et une valeur initiale valide pour faire démarrer le solveur.
+
+```{r quicksolve}
+quick_solve("x^2 + log(x) - 3 = 0", "x", init = 1)
+```
+
+
+# L'objet `thoR.equation`
+
+Le package contient quelques fonctions pour analyser rapidement les résultats de la prévision. Ces analyses passent par la relecture post-prévision des équations comportementales du modèle. L'objet `thoR.equation` permet de se focaliser sur une équation précise du modèle pour avoir une lecture plus claire des mécanismes et dynamiques économiques sous-jacents au modèle.
+
+## Caractéristiques des équations
+
+N'importe quel type d'équation peut-être créé en objet `thoR.equation` du moment que l'équation respecte les règles syntaxiques évoquées [plus haut](#regles_equations). La seule différence est que le nom de l'équation n'est pas à inscire dans la formule comme cela est le cas pour les modèles. L'objet S4 contient les attributs suivants :
+
+ * `equation_name` : Le nom de l'équation.
+ * `formula` : La formule telle qu'initialement renseignée.
+ * `new_formula` : La formule transformée utilisée par le solveur d'équation `thor_equation_solver` 
+ * `coefflist` : Un vecteur contenant les variables déclarées comme coefficients. Cela est utile si on veut que l'équation soit utilisée pour estimer ces coefficients à l'aide d'outils économétriques. Au moment de la création du modèle, un algorithme tente d'ordonner ces coefficients par ordre d'apparition dans l'équation, pour pouvoir facilement faire le lien avec les fonctions économétriques.
+ * `endogenous` : La variable endogène de l'équation (il n'y en a qu'une).
+ * `exogenous` : Le vecteur des variables exogènes de l'équation.
+ * `LHS` et `RHS` : Les parties gauche et droite de l'équation transformées pour utilisation avec des fonctions économétriques (les coefficients ont été retirés. Pour une utilisation avec la fonction `lm()`, il suffirait alors de combiner les deux parties avec un `paste(LHS, RHS, sep = ~)`, en supposant que l'équation est correctement spécifiée pour permettre cela.
+
+ * `maxlag` : le nombre de retards mobilisés par l'équation. Ce nombre est estimé par analyse syntaxique. Si cette analyse échoue, un nombre par défaut spécifié lors de la création de l'objet est utilisé. Cela est notamment utile pour déterminer l'échantillon de données nécessaires pour couvrir une plage de périodes spécifiée. *i.e.* Si on veut estimer de 2000Q1 à 2010Q4 et que `maxlag=4`, alors il faudra procurer des données allant de 1999Q1 à 2010Q4.
+ * `jacobian` : La dérivée symbolique de la formule `new_formula` par l'endgoène spécifiée.
+ * `eq_f` et `jac_f` les fonctions d'évaluation numérique de l'équation et de sa dérivée. 
+ * `econometric_safe` : Lors de la création de l'objet, un test est effectué pour savoir si la partie droite de la formule, en fonction de sa spécification et de ses paramètres, est uilisable facilement avec la fonction `lm()`. Elle permet de signaler à l'utilisateur, si la valeur est `FALSE`, que l'estimation économétrique va demander quelques ajustements au niveau de la formule. Si la valeur est `TRUE` cela signale une spécification correcte (mais sans garantie...).  
+
+
+## Construction de l'objet équation
+
+Il existe deux méthodes pour créer un objet `thoR.equation` : 
+
+1. En utilisant `create_equation()`, c'est-à-dire en la créant manuellement.
+    + On renseigne le nom à donner à l'équation, la formule selon les [règles](#regles_equations), la variable endogène et les coefficients. Les variables exogènes sont déterminées automatiquement.
+    
+2. En faisant appel à une équation d'un `thoR.model` avec la fonction `equation_from_model()`.
+    + On ne renseigne que le nom ou l'index de l'équation, le modèle et la variable endogène. Les coefficients de l'équation seront déterminés par les coefficients du modèle. Optionnellement, on peut donner un autre nom à l'équation que celui du modèle, utile notamment s'il n'y a pas de nom dans le modèle et que l'index est utilisé à la place. 
+
+Dans les deux cas on peut spécifier l'environnement (`env`) où sera créé l'objet et une valeur par défaut de `maxlag` (nombre de retards maximum de l'équation) si l'algorithme échoue à le déterminer.
+
+Les fonctions de création d'équation analysent ensuite les formules (tests et transformations) et créent l'objet. Le vecteur des coeffients est normalement réordonné pour correspondre à l'ordre d'apparition dans l'équation (dans la mesure du possible en fonction de la complexité de la formule).
+
+```{r create_equation}
+## création de l'équation manuelle
+create_equation(equation_name = "eq_prix",
+                formula = "y = b0 +a1*delta(1,x1) + a2*lag(x2,1) + residu",
+                endogenous = "y",coefflist =   c("a1","a2","b0"))
+## les coefficients sont réordonnés par ordre d'apparition dans la formule:
+eq_prix@coefflist
+
+```
+
+L'exemple de création d'équation à partir d'Opale :
+
+```{r equation_from_model, eval = FALSE}
+## création de l'équation à partir du modèle
+create_model("Opale", 
+             model_source = system.file("Opale","opale.txt",package = "tresthor") )
+
+## On récupère l'équation de consommation des ménages d'Opale
+equation_from_model(equation_name_or_id = "conso_m",model = Opale,
+                    endogenous = "td_p3m_d7_ch",new_name = "conso_opale")
+```
+
+## Les variables résiduelles {#residu}
+
+Les équations économétriques sont structurantes au modèle économique, ce sont elles qui vont guider les dynamiques du modèle. 
+
+Pour pouvoir correctement les intégrer à un modèle, il est primordial d'inclure dans la formule une variable qui représentera les résidus de l'équation. A noter qu'il est possible d'utiliser des variables résiduelles dans des équations qui reflètent juste une relation entre deux variables - sans structure économétrique - pour pouvoir correctement calibrer les données en fonction du modèle.
+
+Il faut faire attention à bien retirer les résidus retardés si la variable endogène est présente dans l'équation avec des retards. La règle générale consiste à toujours retirer le résidu correspondant à chaque instance temporelle de la variable endogène que l'on met dans l'équation. 
+
+Les équations économétriques à intégrer dans le modèle devront donc prendre ces formes (en fonctions des cas de figure). On note $res$ la variable résiduelle et $y_t$ la variable endogène :
+
+* Une MCO simple : $y_t = \beta_0 + \beta_1*x_t + res_t$
+
+* Equation avec un terme AR1 : $y_t = \beta_0 + \beta_1*x_t + \beta_2*(y_{t-1} - res_{t-1}) + res_t$
+
+* Modèle à correction d'erreur : $\Delta_1 y_t = \beta_0 + \beta_1*\Delta_1 x_t - \mu *(y_{t-1}-\alpha_0 - \alpha_1 * x_{t-1} - res_{t-1}) +\Delta_1 res_t$
+
+* Equation non-économétrique : $y_t = \gamma * x_t + res_t$
+
+Si l'équation est intégrée à un objet `thoR.model`, il faudra bien penser à déclarer la variable résiduelle en tant qu'exogène (ou endogène selon les cas).
+
+Les résidus jouent un rôle important dans le modèle. Sur le passé, ils permettent d'assurer l'équilibre du modèle. Une relation économétrique n'est jamais parfaite, il y a toujours un écart entre la variable expliquée et les variables explicatives. Avant de lancer la prévision par un modèle il convient donc de recaluler la valeur de ces résidus sur le passé, car on prend les données observées comme telles. 
+
+Pour ce faire, on déclare les endogènes des équations économétriques comme variables exogènes et les résidus comme variables endogènes, puis on résout pour la variable résiduelle sur le passé. Les données sont alors correctement calibrées pour la prévision.
+
+Il y a plusieurs moyens de faire cela avec `tresthor` : 
+
+* soit on crée un modèle inversé en utilisant la fonction `model_endo_exo_switch()` en passant l'ensemble des variables résiduelles des équations du modèle en variables endogènes et les variables expliquées de ces équations en exogène. On résoud ensuite le modèle sur le passé.
+
+* soit on utilise pour chaque équation où les résidus apparaissent la fonction `thor_equation_solver()` sur le passé en créant les équations réciproques où le résidu est endogène
+
+* soit on utilise la fonction `simulate_equation()` sur chaque équation (en laissant le résidu exogène) sur le passé, le résidu étant automatiquement recalculé par cette fonction.
+
+
+##  Cas pratique : une équation de consommation {#exemple}
+
+### Modélisation MCE
+
+On construit un exemple de MCE pour modéliser le comportement de consommation des ménages qui servira d'illustration pour le reste des fonctions. On note $conso_t$ la consommation des ménages, $rdb_t$ le revenu disponible brut des ménages et $chom_t$ le taux de chômage. On propose le modèle suivant :
+
+$$
+\Delta_1(log(conso_t))  = c0 + c1*\Delta_1(log(rdb_t))+c2*\Delta_1(chom_t)+ m*(log(conso_{t-1})-lt0 - lt1*log(rdb_{t-1})) \\
+\text{avec } m<0
+$$
+Pour créer cette équation dans tresthor, il faut bien penser à ajouter les résidus dans la formule :
+```{r eq_conso_ex}
+create_equation("conso_ex",
+                formula = "delta(1,log(conso)) = c0 + c1 * delta(1,log(rdb)) + c2 * delta(1,chom) +
+                            m*(log(lag(conso,-1)) - lag(residu,-1)-lt0 - lt1*log(lag(rdb,1)))+
+                            delta(1,residu)"  ,
+                coefflist = c("c0","c1","c2","m","lt0","lt1"),endogenous = "conso")
+```
+
+> RHS of equation does not appear to be ok for econometric estimations with the current coefficient list.
+
+Cette erreur signale que l'équation en l'état ne peut pas être estimée par les MCO.
+
+### Les données {#don_conso_ex}
+
+Pour constituer la base de données pour travailler avec cette équation, on récupère les trois séries nécessaires (données pour la France sur la consommation des ménages, le revenu disponible brut des ménages et le taux de chômage) de l'Insee via la plateforme [Dbnomics](https://db.nomics.world/) en utilisant le package `rdbnomics`.
+
+  * la consommation des ménages : 
+  [INSEE/CNT-2014-PIB-EQB-RF/T.CNT-EQUILIBRE_PIB.S14.P3.D-CNT.VALEUR_ABSOLUE.FE.L.EUROS.CVS-CJO](https://db.nomics.world/INSEE/CNT-2014-PIB-EQB-RF/T.CNT-EQUILIBRE_PIB.S14.P3.D-CNT.VALEUR_ABSOLUE.FE.L.EUROS.CVS-CJO)
+  * le revenu disponible brut des ménages : [INSEE/CNT-2014-CSI/T.CNT-SOLDES_COMPTABLES_SECTEURS_INST.S14.SO.B6.VALEUR_ABSOLUE.FE.EUROS.CVS-CJO](https://db.nomics.world/INSEE/CNT-2014-CSI/T.CNT-SOLDES_COMPTABLES_SECTEURS_INST.S14.SO.B6.VALEUR_ABSOLUE.FE.EUROS.CVS-CJO)
+  * le taux de chômage : [INSEE/CHOMAGE-TRIM-NATIONAL/T.CTTXC.TAUX.FR-D976.0.00-.POURCENT.CVS](https://db.nomics.world/INSEE/CHOMAGE-TRIM-NATIONAL/T.CTTXC.TAUX.FR-D976.0.00-.POURCENT.CVS)
+  
+
+```{r data_conso}
+## téléchargement des données et constitution de la base
+library(rdbnomics)
+ids <- set_names(c("INSEE/CNT-2014-PIB-EQB-RF/T.CNT-EQUILIBRE_PIB.S14.P3.D-CNT.VALEUR_ABSOLUE.FE.L.EUROS.CVS-CJO",
+                   "INSEE/CNT-2014-CSI/T.CNT-SOLDES_COMPTABLES_SECTEURS_INST.S14.SO.B6.VALEUR_ABSOLUE.FE.EUROS.CVS-CJO",
+                   "INSEE/CHOMAGE-TRIM-NATIONAL/T.CTTXC.TAUX.FR-D976.0.00-.POURCENT.CVS"),
+                 c("conso","rdb","chom"))
+
+donnees_conso <- ids %>% imap(~{rdb(ids=.x) %>%  
+                                select(period,value) %>%  
+                                filter(period >= as.Date("1990-01-01") & period <= as.Date("2020-10-01")) %>% 
+                                rename(date = period, !!.y := value) %>% as.data.frame()}) %>% 
+                          reduce(full_join,by="date") %>% 
+                          mutate(residu = 0, # on ajoute une colonne pour la variable résiduelle
+                                 date = reformat_date(date)) #optionnel, pour transformer le format de date 
+
+```
+
+
+## Visualiser les équation
+
+Les fonctions suivantes permettent de transformer les formules en une version plus lisible.
+
+* `formula_with_coeffs()` prend en argument une formule (`formula` soit une chaîne de caractère, soit directement un objet `thoR.equation`), si la formule n'est pas un objet `thoR.equation`, il faut indiquer dans un vecteur les coefficients (`coefflist`), une base de données (`database`) qui contient les coefficients de l'équation en noms de variable. `round` permet de préciser le nombre de décimales à afficher. L'exemple ci-dessous utilise une base données avec uniquement les coefficients, cependant dans la pratique, un base utilisable par le solveur (modèle ou équation) peut-être mobilisée ici puisqu'elle contient les coefficients.
+
+```{r formula_with_coeffs}
+## création d'une base données avec des coefficients quelconques
+data_coeffs <- data.frame(c0 = 0.5,c1=0.3,c2=-0.01, m = -0.4,lt0=0.01,lt1=0.98765432)
+
+cat(formula_with_coeffs(conso_ex,database = data_coeffs,quiet = TRUE))
+
+## on peut ajouter ces coeffficients à la base de données existante :
+donnees_conso_c <- data_coeffs %>% t() %>% as.data.frame() %>% mutate(names = rownames(.)) %>%
+                         add_coeffs(donnees_conso,pos.coeff.name = 2 , pos.coeff.value = 1)
+
+# donnees_conso_c <- cbind(donnees_conso, data_coeffs) # fonctionne aussi car les coefficientsne sont pas dans la base et le format de data_coeffs s'y prête.
+
+### et utiliser la base complète pour la fonction :
+# cat(formula_with_coeffs(conso_ex,database = data_coeffs,quiet = TRUE))
+```
+
+
+* Pour présenter les équations dans des documents (Word, $\LaTeX$, html, markdown), la fonction `formula_latex()` génère le code LaTeX pour afficher l'équation. Elle prend en argument un objet `thoR.equation` ou une formule en chaîne de caractère (dans ce cas il faudra également préciser le nom des coefficients s'il y en a). Cette fonction peut être combinée avec `formula_with_coeffs()` :
+
+```{r formula_latex_ex}
+cat(formula_latex(conso_ex))
+
+cat(formula_latex(formula_with_coeffs(conso_ex,database = donnees_conso_c,quiet = TRUE)))
+```
+```{r, echo=FALSE}
+plop<-formula_latex(formula_with_coeffs(conso_ex,database = donnees_conso_c,quiet = TRUE))
+plop2<-formula_latex(conso_ex)
+```
+
+En affichage cela donne :
+
+$`r plop2`$
+
+$`r plop`$
+
+A noter que les sauts de lignes qui ont été spécifiés lors de la [création de l'équation](#exemple) sont conservés par ces fonctions.
+
+
+## Solveur d'équation : `thor_equation_solver()`
+
+L'équivalent `thor_solver()` pour les équation est `thor_equation_solver()`.
+
+La résolution d'équation est, à l'instar de celle des modèles, basée sur un algorithme de Newton-Raphson. La fonction procède de manière similaire à celle du solveur de modèle en se basant sur un objet `thoR.equation`. Elle récupére les fonctions d'évaluation numérique des dérivées et de la formule pour résoudre l'équation jusqu'à ce que la convergence soit atteinte. 
+
+Elle nécessite une base de données complète avec [les mêmes exigences](#donnees) que pour le solveur.
+
+La fonction résout l'équation sur une plage de données indiquée par l'utilisateur, période par période de manière à intégrer les résultats calculés sur les périodes antérieures.
+Les arguments de la fonction sont :
+
+ * `equation` : l'objet `thoR.equation`. L'endogène de cette équation sera résolue.
+ 
+ * `first_period` : la première période de projection
+ 
+ * `last_period` : la dernière période de projection
+ 
+ * `database` : la base de données 
+ 
+ * `index_time` : la variable qui sert d'indicateur temporel (first_period et last_period doivent en faire partie). Voir la [section sur les données](#index_time) pour en savoir plus sur les contraintes sur cette variable. Par défaut, cette variable est "*date*". 
+ 
+ * `convergence_criteria` : le critère de convergence initial du solveur, par défaut à 10e-16, il augmente d'un facteur de 10 au bout de 20 itérations sans convergence atteinte. 
+
+A la différence du solveur de modèle, la fonction retourne une base de données simplifiée qui contiendra uniquement l'indicateur temporel, les variables exogènes présentes dans l'équation, les coefficients présents dans l'équation, la variable endogène avant la résolution et la variable endogène après résolution. Le résultat de l'estimation est donc stocké dans une colonne qui prendra comme forme `nom_de_l_endogene.simul`.
+
+Par exemple :
+
+```{r}
+conso_solved <- thor_equation_solver(conso_ex , first_period = "2019Q1", last_period = "2020Q4",
+                                      database = donnees_conso_c,index_time = "date")
+tail(conso_solved,10)
+```
+*N.B. : Cette exemble illustre uniquement le type de sortie générée par le solveur d'équation. Les résultats obtenus sont visibles sur la variable conso.simul mais n'ont aucun sens car les coefficients ont été choisis au hasard. Les sections suivantes expliquent comment obtenir des résultats plus sensés.* 
+
+# Fonctions d'analyse autour des équations
+
+## Estimation de coefficients
+ 
+### Procédure économétrique simplifiée avec quick_estim() 
+
+Le package `tresthor` n'a pas vocation à être un outil économétrique car de nombreux packages existent sur R pour couvrir l'ensemble des méthodes d'estimation économétriques. Nous avons cependant ajouté une fonction, `quick_estim` qui permet une estimation rapide de coefficients. Cette fonction peut estimer :
+
+ * une équation simple par les MCO 
+ * les équations de type modèles à correction d'erreurs en deux étapes : 
+   + estimation de la partie long-terme par MCO dynamiques (dynamic OLS du package `cointReg`)
+   + estimation de la partie court-terme par les MCO.
+  
+Ces fonctions existent pour fournir une analyse rapide des équations économétriques. Elles ne font pas de tests au préalable et ne peuvent pas être paramétrées. Il est vivement conseillé de suivre une procédure scientifique lors de la création d'un modèle, en effectuant les tests nécessaires et en paramétrant correctement les méthodes. 
+
+L'utilisation de ces fonctions impliquent plus de restrictions sur la syntaxe des formules d'équation. Il faut notamment s'assurer que les coefficients n'apparaissent qu'une seule fois chacun, ne pas faire d'opération sur les coefficients et écrire la variable résiduelle en fin de formule (si elle est isolée de la variables endogène, c'est-à-dire que l'endogène et la variable résiduelle correspondant ne sont pas regroupées par des parenthèses).
+
+
+Quelques exemples de syntaxes acceptables :
+
+```
+MCO
+y = coef1 + coef2 * vari1 +coef3 * log(vari2) + residu
+
+MCE 
+delta(1,log(y)) = b_0 + b1 * delta(1,x_1) + mu * (lag(y,1)- c_0 - c_2* lag(x_1,1)-lag(y_residu,1)) - delta(1,y_residu)
+```
+
+### Utilisation de `quick_estim()`
+
+La fonction `quick_estim()` prend en argument un objet `thoR.equation` (argument `thor_equation`) ou bien le nom (et non pas l'id) d'une équation d'un thoR.model dans l'argument `eq_name`. Dans ce deuxième cas de figure, il faut alors préciser aussi les arguments `thoR.model` (modèle de référence) et `endogenous_name` (nom de la variable expliquée). Ensuite, il faut spécifier :
+
+* la base de données utilisée dans `database`
+* l'indicateur temporel `index_time` (par défaut "date")
+* le début et la fin de période d'estimation `estim_start` et `estim_end`, ces variables doivent être présentes dans `index_time`
+* Si l'équation à estimer est un MCE, il faut indiquer les coefficients qui appartiennent à la partie long-terme de l'équation dans `coeff_lt`, mettre `NULL` sinon (valeur par défaut).
+* Si on ne doit pas estimer de constante et que l'équation est en MCO, alors préciser `const = FALSE`
+
+La fonction retourne directement la base de données source avec les coefficients estimés ajoutés. 
+
+Voici ce que cela donne sur notre [équation de consommation]({#exemple}) : 
+
+```{r quick_estim}
+
+conso_data <- quick_estim(thor_equation = conso_ex , database = donnees_conso,
+                          estim_start = "1991Q1", estim_end = "2005Q4",
+                          coeff_lt = c("lt0","lt1"))
+
+nouvelle_formule<-formula_latex(formula_with_coeffs(conso_ex,database=conso_data,round_digits = 4,quiet = TRUE))
+
+
+```
+
+*Ces estimations ne sont pas les meilleures d'un point de vue économétrique, notamment au regard de la faible significativité du coefficient du court terme du RDB, et de l'échantillon de données choisi. Des ajustements sur la spécification de l'équation sont nécessaires (ajout/changement de variables comme par exemple un effet des prix pour représenter le pouvoir d'achat plutôt que le RDB, ajout de variables retardées, d'indicatrices etc...)*
+
+$`r nouvelle_formule`$
+
+L'[exemple appliqué sur le Royaume-Uni](https://www.tresor.economie.gouv.fr/Content/other/Opale/application_tresthor_modele_uk.html) propose des équations compatibles avec ces fonctions (MCO et MCE). Les équations comportementales d'Opale sont également compatibles, mais toutes les parties long-terme des MCE d'Opale sont estimées en amont et inscrites en dur dans le modèle, il ne reste qu'à estimer la partie court-terme par les MCO.
+
+### Estimations en masse : `quick_estim_all()`
+
+Lorsque plusieurs équations d'un modèle sont à estimer (et que l'on suppose estimables par `quick_estim()`), la fonction `quick_estim_all()` permet de toutes les estimer en une commande `quick_estim_all()` prend en arguments :
+
+  * `infos_equations` : il s'agit d'une liste de niveau 2 (une liste de listes). Chaque liste est nommée avec le nom de l'équation d'intérêt. Le nom doit correspondre au nom de l'équation dans le modèle (et non pas de l'id). Pour chaque sous-liste il faut faire figurer les champs suivants avec ces noms précis :
+    + `endogenous_name` : le nom de la variable expliquée de l'équation
+    + `estim_end` et `estim_start` : idem à `quick_estim()`
+    + `coef_lt` : le vecteur des coefficients de la partie long terme de l'équation. Mettre `NULL` si il n'y a pas de long terme à estimer
+    + `const` : `TRUE` s'il faut estimer une constante dans la partie court-terme ou sur l'ensemble de l'équation s'il n'y a pas de long terme estimé par les MCO, `FALSE` sinon. 
+    
+  * `thoR.model` : le modèle qui contient ces équations 
+  * `database` : base de données qui rassemble toutes les données nécessaires aux estimations
+  * `index_time` : la colonne usuelle qui sert d'indicateur temporel.
+  
+L'exemple ci-dessous montre la syntaxe à utiliser pour la liste d'équations ainsi que pour la fonction sur un modèle fictif.
+
+En cas d'erreur rencontrée sur l'estimation d'une équation, `quick_estim_all()` signale l'échec et poursuit ses estimations des autres équations de la liste.
+
+```{r quick_estim_all, eval = FALSE}
+### On suppose que le modèle "Mod_Prev" contient les équations nommées suivantes : "invest" , "exports", "imports"
+
+## on crée la liste suivante 
+
+list_equation <- list(invest = list(endogenous_name = "inv_s",
+                                    estim_start = "2000Q1", estim_end = "2018Q4" ,
+                                    coef_lt = NULL , const = TRUE) ,
+                      exports = list(endogenous_name = "exp_tot" ,
+                                    estim_start =  "2001Q1", estim_end = "2017Q4",
+                                    coef_lt = c("b_lt0","b_lt1"), const = FALSE) ,
+                      imports = list(endogenous_name = "imp_tot" ,
+                                    estim_start =  "2000Q1", estim_end = "2018Q2",
+                                    coef_lt = c("a_lt1","a_lt2","a_lt3"), const = TRUE))
+
+data_quick_estim <- quick_estim_all(info_equations = list_equation , thoR.model = Mod_Prev,
+                                    database = mes_donnees,index_time = "date") 
+```
+
+
+## Simuler une équation : `simulate_equation()` {#simulateeq}
+
+Cette fonction permet de réaliser plusieurs calculs à partir d'un seul objet `thoR.equation` et d'une base donnée. Simuler une équation revient à calculer la valeur de l'endogène telle que prédite par l'équation, c'est-à-dire en supposant que les résidus sont nuls. Les résidus seront ensuite recalculés en fonction de l'observé et du simulé calculé.
+
+`simulate_equation()` prend en argument une objet `thoR.equation`, une base de données qui contient toutes les variables et coefficients de l'équation, `start_sim` et `end_sim` pour indiquer la période sur laquelle il faut simuler l'équation, appartenant à `index_time` (indicateur temporel usuel), enfin il faut préciser le nom de la variable résiduelle telle qu'elle apparaît dans l'équation.
+
+La fonction retourne une base de données avec :
+
+* les variables exogènes et les coefficients de l'équation, 
+* les résidus recalculés dans une variable nommée `residuals`
+* la variable endogène observée, c'est-à-dire sa valeur avant la simultation, dans une variable nommée `observed`
+* la variable endogène simulée, dans une variable nommée `simulated`. Pour toute date antérieure à `start_sim`, la valeur de la variable simulée est égale à l'observée.
+* des variables calculées pour l'observé et le simulé
+
+  + `g_obs` et `g_sim` sont les "vrais" taux de croissance des variables
+  + `dlog_obs` et `dlog_sim` sont les taux de croissance en diff(log)
+  + `d_obs` et `d_sim` les différences en niveau des variables
+  
+* `residual.contrib` est la différence du résidu entre $t-1$ et $t$. Pour les équations en diff(log), cela correspond à la contribution des résidus au taux de croissance en diff(log). 
+
+Enfin la base donnée démarre à la première observation de l'endogène observée qui n'est pas un `NA` et se termine à `end_sim`.
+
+### Exemple de simulation
+
+En reprenant notre équation `conso_ex`, avec les nouveaux coefficients calculés :
+
+```{r sim_obs}
+
+simul_data <- simulate_equation(conso_ex, database = conso_data, 
+                                start_sim = "1991Q2", end_sim = "2020Q4",index_time = "date", 
+                                residual_var = "residu")
+
+tail(simul_data,10)
+```
+
+### Graphiques simulé vs observé
+
+La fonction `graph_sim_obs()` permet de représenter graphiquement les résultats de la fonction `simulate_equation()`. Elle crée un graphique qui représente les valeurs simulées et observées de l'endogène.
+
+Elle prend en argument principal (`database`) une base de données générée par les fonctions `simulate_equation()` ou `dyn_contribs()`. Il est ensuite possible de personnaliser d'avantage le graphique obtenu avec les options suivantes :
+
+* `start_plot` et `end_plot`pour préciser la plage de dates à afficher. Ces arguments sont optionnels, par défaut la fonction prend respectivement la première et la dernière période de la base. Il peut être préférable de choisir une date de départ antérieure à la date de début de simulation (`start_sim` dans la fonction `simulate_equation()`), afin de montrer plus explicitement où démarre la simulation.
+
+* `index_time` est l'indicateur temporel. Il n'est pas nécessaire de le spécifier sauf en cas de modifications des colonnes de la base.
+
+* `title` permet de modifier le titre du graphique.
+
+* `type` indique quelle version des variables doit être représentée. Les types disponibles sont :
+  +   "g" pour le taux de croissance (valeur par défaut)
+  +   "dlog" pour le taux de croissance en diff(log)
+  +   "d" pour la différence en niveau entre $t-1$ et $t$
+  +   "lvl" pour afficher les variables en niveaux.
+
+```{r graph_simobs}
+graph_sim_obs(simul_data , start_plot = "2010Q1",type = "lvl")
+```
+
+On peut combiner ces fonctions avec le `%>%` :
+
+```{r graph_sim_obs_pipe}
+
+conso_ex %>% simulate_equation( database = conso_data, 
+                                start_sim = "2010Q1", end_sim = "2020Q4",index_time = "date", 
+                                residual_var = "residu") %>% 
+              graph_sim_obs(start_plot = "2009Q1",end_plot = "2019Q4",
+                            title = "Equation de consommation des ménages",type = 'g',
+                            colours = c("hotpink","olivedrab3"))
+
+```
+
+On note qu'étant donnée la faible qualité de notre spécification (de part l'échantillon choisi d'estimation choisi et la spécification), les écarts en niveau sont assez importants après le quatrième trimestre 2007. Ici le graphique nous indique que pour que la spécification fonctionne sur une estimation au delà de 2007, il faudrait inclure une indicatrice pour corriger la différence en niveau (qui correspondrait à la crise financière de 2008).
+
+```{r graph sim_obs2}
+conso_ex %>% simulate_equation( database = conso_data, 
+                                start_sim = "1991Q1", end_sim = "2020Q4",index_time = "date", 
+                                residual_var = "residu") %>% graph_sim_obs(start_plot = "2000Q1", type = "lvl")
+```
+
+La spécification est plus acceptable si on regarde les taux de croissance (mis à part les crises de 2011 et 2020) :
+
+```{r graph sim_obs3}
+conso_ex %>% simulate_equation( database = conso_data, 
+                                start_sim = "1991Q1", end_sim = "2019Q4",index_time = "date", 
+                                residual_var = "residu") %>% graph_sim_obs(start_plot = "2000Q1", type = "g")
+```
+
+## Les contributions dynamiques
+
+Les fonctionnalités liées au calcul des contributions dynamiques fonctionnent surtout pour les équations de types MCE (modèle à correction d'erreur). Pour les autres types d'équations, des ajustements peuvent être nécessaires au niveau de la formule ou bien des résultats obtenus. Ce guide présente donc le calcul des contributions dynamiques pour les équations MCE uniquement. 
+
+Pour que le calcul soit possible, des contraintes syntaxiques supplémentaires sur la formulation de l'équation sont requises. Il faut notamment éviter les variables composées et autres expressions complexes dans l'équation qui pourraient être un obstacle pour le lecteur syntaxique. La règle générale consiste à écrire l'équation de manière la plus simple possible.
+
+Il faut aussi que la force de rappel de l'équation (le coefficient devant la partie long terme de l'équation , $m$ dans l'exemple) soit significativement négative, sinon les contributions ne sommeront pas.
+
+La fonction `dyn_contrib()` calcule pour une équation les contributions dynamiques des variables explicatives aux variations de la variable endogène. Cela représente l'impact des variations cumulées à travers les différentes périodes de chaque variable explicative sur la variable endogène.
+
+La fonction commence par exécuter la fonction `simulate_equation()`, puis effectue le calcul des contributions dynamiques.
+La première partie des arguments de cette fonction est donc similaire aux arguments de `simulate_equation()` ([voir la section](#simulateeq)) pour `thor_equation`, `database` , `start_sim`, `end_sim`, `index_time` et `residual_var`. 
+
+Les arguments supplémentaires sont :
+
+  * `regroup_these` : si on souhaite sommer les contributions de plusieurs variables explicatives sous une seule variable groupée, par exemple lorsque l'équation contient beaucoup d'indicatrices, il peut être préférable de les rassembler[^n4] . Il faut alors indiquer dans un vecteur l'ensemble des variables à regrouper.
+  
+  * `name_group` permet de donner un nom au groupe des variables regroupées.
+  
+  * `print_verif` : si `TRUE` les vérifications du calcul des contributions sur les (maximum) 50 dernières périodes seront affichées. La vérification consiste à tester si la somme des contributions (résidus inclus) est bien égale au taux de croissance observé de la variable expliquée. Le calcul est réussi si la vérification affiche des 0 dans les dernières périodes. Il est conseillé de choisir une plage de données large (`start_sim` et `end_sim`), car cela améliore les calculs des contributions vers les périodes en fin de plage. Plus la fonction dispose d'un recul, plus les calculs seront convergents (voir l'exemple ci-dessous).
+
+[^n4]: Voir le [guide spécifique à Opale](https://www.tresor.economie.gouv.fr/Content/other/Opale/manuel_opale_r.html) pour un exemple d'utilisation de cet argument.
+
+```{r contribs}
+essai1 <- dyn_contribs(conso_ex,conso_data,"2000Q1","2020Q4",residual_var = "residu")
+
+essai2 <- dyn_contribs(conso_ex,conso_data,"1992Q1","2020Q4",residual_var = "residu")
+```
+
+La fonction retourne une base données avec les variables présentes dans la sortie de `simulate_equation()` (ce qui rend les sorties compatibles avec `graph_sim_obs()`) et les contributions calculées, repérables par le suffixe `.contrib` dans le nom de la variable.
+
+
+```{r contribs data}
+tail(essai1,5) 
+```
+
+### Graphiques des contributions dynamiques {#graphcontrib}
+
+Les sorties des fonctions de calcul de contributions dynamiques (voir la fonction d'[annualisation des contributions trimestrielles](#contribann)) peuvent être directement représentées graphiquement avec la fonction `graph_contrib()` :
+
+Elle prend en arguments principaux :
+
+* `contrib_data` : une base de données avec les contributions calculées avec `dyn_contrib()` ou `yearly_contrib()`
+* `start_plot` et `end_plot` pour déterminer les observations à représenter, ils doivent faire partie de l'indicateur temporel `index_time` (comme pour `graph_sim_obs()` ce dernier argument est optionnel, la fonction prendra par défaut la premìere colonne de la base de données qui, si elle n'a pas été modifiée contient l'indicateur temporel, ou bien la variable `year` générée par `yearly_contrib()`.
+
+Le graphique peut être personnalisé avec les arguments suivants :
+
+ * `title` : le titre à donner au graphique
+ * `name_endogenous` : le nom à afficher dans la légende pour la variable endogène (sinon *main_variable* est affiché par défaut)
+ * `colour_line` : la couleur de la courbe (une seule possible)
+ * `colours_bar` : un vecteur de couleurs. Il faut renseigner au moins autant de couleurs que de contributions tracées, les couleurs en trop seront ignorées[^n5], la dernière couleur du vecteur sera la couleur de la contribution des résidus
+ * `bar_labels` : les noms à afficher dans la légende pour les variables explicatives. Il faut avoir exactement autant de noms que de variables. L'ordre correspond à l'ordre d'apparition dans la base de données à l'exception de la variable résiduelle qu'il préciser systématiquement en dernier.
+ * `legend_n_row` : le nombre de lignes sur lequel va s'étendre la légende
+
+[^n5]: Cela est utile pour définir une charte graphique pour l'ensemble des graphiques d'un modèle où le nombre de variables explicatives peut varier par équation.
+
+Voici ce que donne la fonction en mode basique :
+
+```{r graph_contrib}
+graph_contrib(essai1,start_plot = "2018Q1",end_plot = "2019Q4")
+```
+
+Et avec quelques de modifications :
+
+```{r graph_contrib2}
+essai2 %>% graph_contrib(start_plot = "2017Q1",end_plot = "2019Q4",
+                         title = "Contributions dynamiques trimestrielles :\n consommation des ménages",
+                         name_endogenous = "Consommation des ménages",
+                         colour_line = "springgreen4",
+                         colours_bar = c("hotpink","hotpink4","lightpink","lightgoldenrod"), ##on note que lightpink ne sera pas utilisé
+                         bar_labels = c("Revenu disponible brut des ménages","Taux de chômage","Inexpliqué"),
+                         legend_n_row = 3)
+```
+
+### Annualisations des contributions trimestrielles {#contribann}
+
+Si la base de données est trimestrielle, la fonction `yearly_contrib()` permet d'annualiser les contributions[^n6] calculées par `dyn_contrib()`. 
+
+Il faut indiquer :
+
+* la base de données des contributions timestrielles calculées par `dyn_contrib()` dans le champ `contrib_quarterly_database` 
+* `index_year` : un vecteur des années correspondant à la base 
+* `quarter_start` : le trimestre qui est représenté à la première observation de la base (par défaut 1)
+
+
+```{r index year , eval=TRUE}
+### exemples de création de vecteur pour l'argument index_year
+
+## Si le colonne de dates trimestrielles est au format date (ie as.Date("2010-07-01")) :
+
+vecteur_dates_trim <- seq.Date(from = as.Date("2010-07-01"),by = "quarter",length.out = 8)
+index_annees <- as.numeric(format(vecteur_dates_trim,"%Y"))
+
+vecteur_dates_trim
+index_annees
+
+## Si le colonne de dates trimestrielles est au format simplifié (ie "2010Q3"):
+vecteur_dates_trim2 <- reformat_date(vecteur_dates_trim)
+index_annees2 <- as.numeric(gsub("(.*)Q[1-4]$","\\1",vecteur_dates_trim2))
+
+vecteur_dates_trim2
+index_annees2
+
+```
+
+Exemple de calcul à partir des contributions trimestrielles calculées précédemment :
+
+```{r contrib_ann}
+contrib_ann <- yearly_contrib(essai2 , index_year = as.numeric(gsub("(.*)Q[1-4]$","\\1",essai1$date)))
+
+tail(contrib_ann,5)
+```
+
+La fonction retourne une base de données annuelle, avec les contributions annualisées dénotées par le suffixe `.y`. dlog_obs_y correspond à une approximation du taux de croissance en moyenne annuelle .
+
+Important à noter : L'annualisation des contributions dynamiques trimestrielle est réalisée par une méthode adaptée aux taux de croissances calculés "normalement" ($\frac{X_t}{X_{t-1}}-1$). Les équations économétriques utilisent  $\Delta_1(\mathit{log}(X))$ qui est une approximation des taux de croissance. 
+Cela implique que les taux de croissance annuels vont différer entre le vrai taux de croissance annuel moyen et celui calculé par log-linéarisation. Les écarts seront plus importants sur les taux élevés, comme cela peut être le cas en 2020 : on voit que dlog_obs.y vaut -8.56 alors que le véritable taux de croissance en moyenne annuelle de la consommation des ménages est de -7.18 %
+
+Pour les taux de croissance relativement faibles (inférieurs à $\sim|4|$%), les écarts entre la somme des contributions annuelles et le taux de croissance annuel de la variable expliquée ne se verront pas. Des décalages pourront être visibles (plus flagrant sur les graphiques) pour des taux plus élevés. 
+
+Ces contributions peuvent être directement utilisées par la [fonction graphique](#graphcontrib) `graph_contrib()` :
+
+```{r graph contribann}
+graph_contrib(contrib_ann, start_plot = 2000,end_plot = 2020)
+```
+
+Il est également possible d'enchaîner les calculs avec le `%>%`
+
+```{r graph contribann2}
+conso_ex %>% 
+  dyn_contribs(conso_data,"1992Q1","2020Q4",residual_var = "residu") %>% 
+    yearly_contrib(index_year = as.numeric(gsub("(.*)Q[1-4]$","\\1",essai1$date))) %>% 
+      graph_contrib(start_plot = 2010,end_plot = 2020,
+                    title = "Contributions dynamiques annuelles:\nconsommation des ménages",
+                         name_endogenous = "Consommation des ménages",
+                         colour_line = "red3",
+                         colours_bar = c("darkblue","steelblue","lightskyblue","seashell3"), 
+                         bar_labels = c("Revenu disponible brut des ménages","Taux de chômage","Inexpliqué"),
+                         legend_n_row = 3)
+  
+```
+
+
+[^n6]: D'autres fréquences sont à l'étude.
+
+## Les graphiques de visualisation de courbes rapides : `quick_plot()`
+
+La fonction `quick_plot()` permet visualiser rapidement plusieurs variables d'une même base de données, en niveau ou en taux de croissance. Peu d'options de personnalisation sont disponibles, pour ne pas complexifier cette fonction :
+
+* on renseigne les variables à tracer dans un vecteur pour l'argument `variables`
+* la base de données où trouver ces variables dans `database`
+* le nom de l'indicateur temporel de la base de données (`index_time`, par défaut il s'agit de "date")
+
+et optionnellement :
+
+* `start` et `end` pour spécifier la plage de périodes à tracer
+* `growth_rate` : `TRUE` si on veut tracer les taux de croissance, sinon ce sera en niveau (par défaut `FALSE`)
+* `title` : le titre à donner au graphique
+* `colours` : un vecteur de couleurs pour personnaliser les couleurs des courbes. Il faut spécifier au minimum autant de couleurs que de variables, les couleurs en trop seront ignorées. Si un nombre insuffisant de couleurs est spécifié, les couleurs par défaut seront utilisées
+
+Voici quelques exemples :
+
+```{r quickplots}
+
+quick_plot(c("conso","rdb"),conso_data )
+quick_plot(c("conso","rdb"),conso_data,
+           start = "2005Q1", growth_rate = TRUE, 
+           colours = c("hotpink","springgreen3","gold3"))
+
+quick_plot(c("dlog_obs","g_obs"), simul_data,start = "2019Q1" , 
+           title = "Comparaison des méthodes de calul du taux de croissance", 
+           colours = c('cornflowerblue','springgreen3') )
+
+```
+
