@@ -109,7 +109,7 @@ get_jacobian_commands<-function(jacobian,database_name,output_matrix_name="outpu
     functions_supported<-paste0(thor_functions_supported,"\\(") %>% paste(collapse="|")
     function_patterns<- paste0("(",functions_supported,"|lag\\.|delta\\(|newdiff\\(|\\.e[0-9]\\()")
 
-    old_expression<-tolower(jacobian[i,j])
+    old_expression<-tolower(jacobian[i,j]) %>% str_remove("\\n")
 
     expression_functions<-gsub(function_patterns,"\\U\\1",old_expression,perl = TRUE)
     ##change delta to newdiff

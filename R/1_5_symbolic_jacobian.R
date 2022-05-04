@@ -45,7 +45,8 @@ symbolic_jacobian<- function(equations_list_df, eqns_vars_list, endo_vec, equati
     line_in_jacobian<- jacobian[equation_name,]
     for ( j in 1:length(my_varlist)){
       h<-my_varlist[j]
-      my_derivative <-Deriv(my_f,h)
+      my_derivative <-Deriv(my_f,h,cache.exp = FALSE)
+
       line_in_jacobian[h]<-paste(my_derivative)
     }
     return(line_in_jacobian)
