@@ -1,2 +1,9 @@
 ^.*\.Rproj$
 ^\.Rproj\.user$
+^tests$
+^dev_history\.r$
+^old$
+^essais$
+^essais_contribs\.Rmd$
+^rcpp_test$
+^essais_md\.Rmd$

@@ -33,8 +33,8 @@ Jacobian_Rcpp <- function(path_jacobian_R,
 
   #traiter les premieres lignes
   firstTreated <- character()
-  firstTreated[1] <- paste("arma::mat ", gsub("<.+$","",firstFour[1]),"(arma::mat & M, int & t){",sep="")
-  firstTreated[2] <- paste("arma::mat Jacobian_n(",
+  firstTreated[1] <- paste("mat ", gsub("<.+$","",firstFour[1]),"(arma::mat & M, int & t){",sep="")
+  firstTreated[2] <- paste("mat Jacobian_n(",
                            substring(stringr::str_extract(string = firstFour[2], pattern = "= \\d+")[[1]],3),
                            ",",
                            substring(stringr::str_extract(string = firstFour[2], pattern = "= \\d+")[[1]],3),
@@ -338,7 +338,7 @@ arma::mat Rcpp_solver(arma::mat& M,
         }
         Jacobian_n = prologue_jacobian_f(M, t);
         f_x_n = prologue_equations_f(M,t);
-        x_n1 = x_n - (inv(Jacobian_n) * f_x_n);
+        x_n1 = x_n - solve(Jacobian_n, f_x_n);
         s = arma::approx_equal(x_n1,x_n, "absdiff", convergence);
         n++;
       }
@@ -361,7 +361,7 @@ arma::mat Rcpp_solver(arma::mat& M,
         }
         Jacobian_n = heart_jacobian_f(M,t);
         f_x_n = heart_equations_f(M,t);
-        x_n1 = x_n - (inv(Jacobian_n) * f_x_n);
+        x_n1 = x_n - solve(Jacobian_n, f_x_n);
         s = arma::approx_equal(x_n1,x_n, "absdiff", convergence);
         n++;
       }
@@ -384,7 +384,7 @@ arma::mat Rcpp_solver(arma::mat& M,
         }
         Jacobian_n = epilogue_jacobian_f(M,t);
         f_x_n = epilogue_equations_f(M,t);
-        x_n1 = x_n - (inv(Jacobian_n) * f_x_n);
+        x_n1 = x_n - solve(Jacobian_n, f_x_n);
         s = arma::approx_equal(x_n1,x_n, "absdiff", convergence);
         n++;
       }
@@ -407,7 +407,7 @@ arma::mat Rcpp_solver(arma::mat& M,
 
   // Delaration des variables
   arma::uvec tt;
-  arma::mat Jacobian_n;
+  mat Jacobian_n;
   arma::mat f_x_n;
   arma::vec x_n;
   arma::vec x_n1;

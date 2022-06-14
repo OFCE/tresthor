@@ -22,6 +22,7 @@ usethis::use_package("stats")
 usethis::use_package("cointReg")
 usethis::use_package("x12",type = "Suggests")
 usethis::use_package("lubridate",type = "Suggests")
+usethis::use_package("rdbnomics",type = "Suggests")
 
 use_vignette("GuideUtilisateur")
 devtools::build()

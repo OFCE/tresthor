@@ -33,7 +33,11 @@ vignette: >
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(tresthor)
-library(tidyverse)
+library(dplyr)
+library(purrr)
+library(tidyr)
+library(stringr)
+library(rdbnomics)
 ```
 
 
@@ -661,7 +665,7 @@ Pour constituer la base de données pour travailler avec cette équation, on ré
 library(rdbnomics)
 ids <- set_names(c("INSEE/CNT-2014-PIB-EQB-RF/T.CNT-EQUILIBRE_PIB.S14.P3.D-CNT.VALEUR_ABSOLUE.FE.L.EUROS.CVS-CJO",
                    "INSEE/CNT-2014-CSI/T.CNT-SOLDES_COMPTABLES_SECTEURS_INST.S14.SO.B6.VALEUR_ABSOLUE.FE.EUROS.CVS-CJO",
-                   "INSEE/CHOMAGE-TRIM-NATIONAL/T.CTTXC.TAUX.FR-D976.0.00-.POURCENT.CVS"),
+                   "INSEE/CHOMAGE-TRIM-NATIONAL/T.CTTXC.TAUX.FR-D976.0.00-.POURCENT.CVS.FALSE"),
                  c("conso","rdb","chom"))
 
 donnees_conso <- ids %>% imap(~{rdb(ids=.x) %>%  

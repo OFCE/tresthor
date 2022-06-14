@@ -40,5 +40,6 @@ Suggests:
     x12,
     lubridate,
     knitr,
-    rmarkdown
+    rmarkdown,
+    rdbnomics
 VignetteBuilder: knitr
