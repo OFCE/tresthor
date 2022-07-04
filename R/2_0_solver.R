@@ -12,6 +12,7 @@
 #' @param rcpp boolean. If the rcpp solver is to be used. Default : FALSE
 #' @param main_variable_fx function to aply to the main variable displayed. Default : function(x)x
 #' @param adv_diag : boolean : gives advanced informations aout the computations. Default : FALSE
+#' @param skip_tests : boolean : option to skip preliminary tests before running the solver. Default : FALSE
 #'
 #' @return a dataframe that mirrors the database input, but with endogenous variables solved.
 #' @import assertthat
@@ -29,7 +30,8 @@ thor_solver<-function(model,
                       convergence_criteria=0.000000001,
                       dynamic_convergence=10,
                       rcpp=FALSE,
-                      adv_diag = FALSE){
+                      adv_diag = FALSE,
+                      skip_tests = FALSE){
 
   #############
   ##1.checks
@@ -38,6 +40,8 @@ thor_solver<-function(model,
  model = model
   assertthat::assert_that(convergence_criteria < 0.01)
   #check that data contains all variables used in model
+
+  if(skip_tests == FALSE){
   if(data_model_checks(model,database)==FALSE){stop("Missing variables in the database. The solver won't work.'")}
   if(!is.null(main_variable)){if(!main_variable %in% names(database)){cat(paste0(main_variable, " doesn't seem to exist in the database. the argument will be ignored. \n"))
     main_variable <-NULL}}
@@ -107,7 +111,7 @@ thor_solver<-function(model,
   }
 }
   if(check_subdata==FALSE){stop("Missing some variables to run the solver. Please check your data.")}
-
+  }
   #############
   ##2.solver
   #############

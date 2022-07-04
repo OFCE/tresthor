@@ -288,7 +288,9 @@ create_model_rcpp_source <- function(model_name,p_h_e_bool,p_h_e_jac ,all_model_
   if(file.exists(rcpp_file_name)){file.remove(rcpp_file_name)}
 
   Rcpp_header <- paste(
-'// [[Rcpp::depends("RcppArmadillo")]]
+'#define ARMA_USE_SUPERLU 1
+
+// [[Rcpp::depends("RcppArmadillo")]]
 # include <RcppArmadillo.h>
 
 using namespace arma;
@@ -307,6 +309,7 @@ arma::mat Rcpp_solver(arma::mat& M,
   // Delaration des variables
   arma::uvec tt;
   arma::mat Jacobian_n;
+  arma::sp_mat sp_jac;
   arma::mat f_x_n;
   arma::vec x_n;
   arma::vec x_n1;
@@ -337,8 +340,9 @@ arma::mat Rcpp_solver(arma::mat& M,
           if(n>10){convergence=10*convergenceCriteria;n=1;}
         }
         Jacobian_n = prologue_jacobian_f(M, t);
+        sp_jac = sp_mat(Jacobian_n);
         f_x_n = prologue_equations_f(M,t);
-        x_n1 = x_n - solve(Jacobian_n, f_x_n);
+        x_n1 = x_n - spsolve(sp_jac, f_x_n);
         s = arma::approx_equal(x_n1,x_n, "absdiff", convergence);
         n++;
       }
@@ -360,8 +364,9 @@ arma::mat Rcpp_solver(arma::mat& M,
           if(n>10){convergence=10*convergenceCriteria;n=1;}
         }
         Jacobian_n = heart_jacobian_f(M,t);
+        sp_jac = sp_mat(Jacobian_n);
         f_x_n = heart_equations_f(M,t);
-        x_n1 = x_n - solve(Jacobian_n, f_x_n);
+        x_n1 = x_n - spsolve(sp_jac, f_x_n);
         s = arma::approx_equal(x_n1,x_n, "absdiff", convergence);
         n++;
       }
@@ -383,8 +388,9 @@ arma::mat Rcpp_solver(arma::mat& M,
           if(n>10){convergence=10*convergenceCriteria;n=1;}
         }
         Jacobian_n = epilogue_jacobian_f(M,t);
+        sp_jac = sp_mat(Jacobian_n);
         f_x_n = epilogue_equations_f(M,t);
-        x_n1 = x_n - solve(Jacobian_n, f_x_n);
+        x_n1 = x_n - spsolve(sp_jac, f_x_n);
         s = arma::approx_equal(x_n1,x_n, "absdiff", convergence);
         n++;
       }
@@ -410,6 +416,7 @@ arma::mat Rcpp_solver(arma::mat& M,
   mat Jacobian_n;
   arma::mat f_x_n;
   arma::vec x_n;
+  arma::sp_mat sp_jac;
   arma::vec x_n1;
   int t;
   int n;
@@ -440,7 +447,8 @@ solver_prologue <- '
         }
         Jacobian_n = prologue_jacobian_f(M, t);
         f_x_n = prologue_equations_f(M,t);
-        x_n1 = x_n - (inv(Jacobian_n) * f_x_n);
+        sp_jac = sp_mat(Jacobian_n);
+        x_n1 = x_n - spsolve(sp_jac, f_x_n);
         s = arma::approx_equal(x_n1,x_n, "absdiff", convergence);
         n++;
       }
@@ -465,7 +473,8 @@ solver_heart<- '
         }
         Jacobian_n = heart_jacobian_f(M,t);
         f_x_n = heart_equations_f(M,t);
-        x_n1 = x_n - (inv(Jacobian_n) * f_x_n);
+        sp_jac = sp_mat(Jacobian_n);
+        x_n1 = x_n - spsolve(sp_jac, f_x_n);
         s = arma::approx_equal(x_n1,x_n, "absdiff", convergence);
         n++;
       }
@@ -490,7 +499,8 @@ solver_epilogue <- '
         }
         Jacobian_n = epilogue_jacobian_f(M,t);
         f_x_n = epilogue_equations_f(M,t);
-        x_n1 = x_n - (inv(Jacobian_n) * f_x_n);
+        sp_jac = sp_mat(Jacobian_n);
+        x_n1 = x_n - spsolve(sp_jac, f_x_n);
         s = arma::approx_equal(x_n1,x_n, "absdiff", convergence);
         n++;
       }

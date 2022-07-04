@@ -14,7 +14,8 @@ create_model(
   exogenous = NULL,
   coefficients = NULL,
   equations = NULL,
-  env = globalenv()
+  env = globalenv(),
+  no_var_map = FALSE
 )
 }
 \arguments{
@@ -37,6 +38,8 @@ create_model(
 \item{equations}{character vector containing equations (only read if no input is provided in model_source, optionnal). Default: NULL}
 
 \item{env}{Environment where to store the model object. Default: globalenv()}
+
+\item{no_var_map}{boolean. If TRUE, no vat_map we will be built, instead an empty list will be created. Default : FALSE}
 }
 \value{
 A thoR.model created in the environment.
