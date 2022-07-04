@@ -15,7 +15,8 @@ thor_solver(
   convergence_criteria = 1e-09,
   dynamic_convergence = 10,
   rcpp = FALSE,
-  adv_diag = FALSE
+  adv_diag = FALSE,
+  skip_tests = FALSE
 )
 }
 \arguments{
@@ -40,6 +41,8 @@ thor_solver(
 \item{rcpp}{boolean. If the rcpp solver is to be used. Default : FALSE}
 
 \item{adv_diag}{: boolean : gives advanced informations aout the computations. Default : FALSE}
+
+\item{skip_tests}{: boolean : option to skip preliminary tests before running the solver. Default : FALSE}
 }
 \value{
 a dataframe that mirrors the database input, but with endogenous variables solved.

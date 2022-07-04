@@ -23,6 +23,7 @@
 #' @param equations character vector containing equations (only read if no input is provided in model_source, optionnal). Default: NULL
 #' @param env Environment where to store the model object. Default: globalenv()
 #' @param rcpp_path path to directory where to store the rcpp source files for the model. Default: working directory
+#' @param no_var_map boolean. If TRUE, no vat_map we will be built, instead an empty list will be created. Default : FALSE
 #'
 #' @return A thoR.model created in the environment.
 #' @examples
@@ -45,7 +46,8 @@ create_model <- function(model_name = "model",
                          endogenous = NULL,
                          exogenous = NULL,
                          coefficients = NULL,
-                         equations = NULL, env= globalenv()) {
+                         equations = NULL, env= globalenv(),
+                         no_var_map = FALSE) {
   ################################
   #### 0.a  Arguments verification
   ################################
@@ -290,7 +292,12 @@ Refer to the documentation for more information."))
   cat("\n
    Step 6: Building the variables info map....
       \n")
-  var_map <- build_dico(equations_list_df = equations_list,endos = endo,exos = exo,coeffs = coeff,p_endos = prologue_endo,h_endos = heart_endo,e_endos = epilogue_endo)
+    if(no_var_map){
+      var_map <- list(no_var_map = TRUE, message = "To use functionalities of var_map, rebuild the model with no_var_map = FALSE")
+    }else{
+      var_map <- build_dico(equations_list_df = equations_list,endos = endo,exos = exo,coeffs = coeff,p_endos = prologue_endo,h_endos = heart_endo,e_endos = epilogue_endo)
+    }
+
    ################################
    #### 7. Create the model object
    ################################
