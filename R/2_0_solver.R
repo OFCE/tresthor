@@ -200,10 +200,13 @@ thor_solver<-function(model,
           Jacobian_n <- jac_f(t,t_data,jacobian)
           f_x_n      <- eq_f(t,t_data)
 
-          sparseJA <- as.matrix(Jacobian_n, "sparseMatrix")
-          inv_J_n<-as.matrix(Matrix::solve(sparseJA, tol=10^-20, sparse=TRUE))
+          sparseJA <- as(Jacobian_n, "dgTMatrix")
+
+          Z <- Matrix::solve(sparseJA, b = f_x_n)
+          x_n1 <-  (x_n - Z) %>% as.vector()
+          # inv_J_n<-as.matrix(Matrix::solve(sparseJA, tol=10^-20, sparse=TRUE))
           # inv_J_n<-as.matrix(Matrix::solve(Jacobian_n, tol=10^-20))
-          x_n1<-x_n - (inv_J_n %*% f_x_n)
+          # x_n1<-x_n - (inv_J_n %*% f_x_n)
           names(x_n1) <- names(x_n)
           n<-n+1
         } ##convergence curl
