@@ -4,6 +4,10 @@ library(tresthor)
 library(tidyverse)
 
 
+Sys.setenv("CPATH"="/opt/homebrew/include")
+Sys.setenv("LIBRARY_PATH"="/opt/homebrew/lib")
+Sys.setenv("PKG_LIBS"="-lsuperlu")
+
 start_solver = as.Date("2010-01-01")
 end_solver = as.Date("2020-10-01")
 

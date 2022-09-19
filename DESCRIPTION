@@ -1,6 +1,6 @@
 Package: tresthor
 Title: Macroeconomic model analysis
-Version: 1.1.6
+Version: 1.1.7
 Authors@R: 
     c(person(given = "Anissa",
            family = "Saumtally",

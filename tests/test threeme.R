@@ -3,7 +3,7 @@
 library(tidyverse)
 library(tresthor)
 
-classification <-"8x8"
+classification <-"4x4"
 
 create_model(str_c("threeme",classification),model_source = str_c("tests/threeme_",classification,"_thor.txt"),rcpp = TRUE,rcpp_path = "tests")
 

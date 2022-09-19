@@ -17,6 +17,7 @@
 #' @return a dataframe that mirrors the database input, but with endogenous variables solved.
 #' @import assertthat
 #' @importFrom purrr is_empty
+#' @importFrom Matrix as.matrix
 #' @export
 #'
 #'
@@ -200,7 +201,7 @@ thor_solver<-function(model,
           Jacobian_n <- jac_f(t,t_data,jacobian)
           f_x_n      <- eq_f(t,t_data)
 
-          sparseJA <- as(Jacobian_n, "dgTMatrix")
+          sparseJA <-  Matrix::as.matrix(Jacobian_n, "dgTMatrix")
 
           Z <- Matrix::solve(sparseJA, b = f_x_n)
           x_n1 <-  (x_n - Z) %>% as.vector()
@@ -220,7 +221,7 @@ thor_solver<-function(model,
       }#stage curls
 
 
-    cat(paste("\n ",database[timeref,index_time],"..."))
+    cat(paste("  ",database[timeref,index_time],"..."))
 
     }#time curls
    if(adv_diag == TRUE){

@@ -1,3 +1,5 @@
+#define ARMA_USE_SUPERLU 1
+
 // [[Rcpp::depends("RcppArmadillo")]]
 # include <RcppArmadillo.h>
 
@@ -4904,6 +4906,7 @@ arma::mat Rcpp_solver(arma::mat& M,
   mat Jacobian_n;
   arma::mat f_x_n;
   arma::vec x_n;
+  arma::sp_mat sp_jac;
   arma::vec x_n1;
   int t;
   int n;
@@ -4934,7 +4937,8 @@ arma::mat Rcpp_solver(arma::mat& M,
         }
         Jacobian_n = prologue_jacobian_f(M, t);
         f_x_n = prologue_equations_f(M,t);
-        x_n1 = x_n - (inv(Jacobian_n) * f_x_n);
+        sp_jac = sp_mat(Jacobian_n);
+        x_n1 = x_n - spsolve(sp_jac, f_x_n);
         s = arma::approx_equal(x_n1,x_n, "absdiff", convergence);
         n++;
       }
@@ -4959,7 +4963,8 @@ arma::mat Rcpp_solver(arma::mat& M,
         }
         Jacobian_n = heart_jacobian_f(M,t);
         f_x_n = heart_equations_f(M,t);
-        x_n1 = x_n - (inv(Jacobian_n) * f_x_n);
+        sp_jac = sp_mat(Jacobian_n);
+        x_n1 = x_n - spsolve(sp_jac, f_x_n);
         s = arma::approx_equal(x_n1,x_n, "absdiff", convergence);
         n++;
       }
@@ -4983,7 +4988,8 @@ arma::mat Rcpp_solver(arma::mat& M,
         }
         Jacobian_n = epilogue_jacobian_f(M,t);
         f_x_n = epilogue_equations_f(M,t);
-        x_n1 = x_n - (inv(Jacobian_n) * f_x_n);
+        sp_jac = sp_mat(Jacobian_n);
+        x_n1 = x_n - spsolve(sp_jac, f_x_n);
         s = arma::approx_equal(x_n1,x_n, "absdiff", convergence);
         n++;
       }

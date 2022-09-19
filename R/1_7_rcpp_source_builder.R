@@ -259,6 +259,34 @@ f_x_Rcpp <- function(path_f_x, var_order, cpp_file = NA){
 
   f_x_f <- c(firstTreated, f_x, lastTreated, "")
 
+  for (i_text in 1:length(f_x_f)){
+    while(grepl("\\^\\d",f_x_f[i_text])){ #s'il y a une puissance
+      pos_parenthese_ouverte <- integer()
+      pos_power <- gregexpr("\\^\\d",f_x_f[i_text])[[1]][1]-2# on se positionne avant de fermer la parenthese de power
+      #tant qu'il reste du newdiff a traiter
+      #Pour chaque newdiff on veut reperer la parenthese fermante
+      nb_parenthese_ouverte <- -1
+      index_char <- pos_power
+      while (nb_parenthese_ouverte < 0){
+        nb_parenthese_ouverte <- nb_parenthese_ouverte +
+          (substring(f_x_f[i_text],index_char,index_char)=="(") -
+          (substring(f_x_f[i_text],index_char,index_char)==")")
+        index_char <- index_char - 1
+      }
+      pos_parenthese_fermee <- index_char+1
+      if(substring(f_x_f[i_text],pos_parenthese_fermee-1,pos_parenthese_fermee-1)=="M"){
+        pos_parenthese_fermee=pos_parenthese_fermee-1
+      }
+      power <- substring(f_x_f[i_text],pos_power+3,pos_power+3)
+      f_x_f[i_text]<-gsub(gsub("(\\[)","\\\\\\1",gsub("(\\])","\\\\\\1",gsub("(\\))","\\\\\\1",gsub("(\\()","\\\\\\1",gsub("(\\+)","\\\\\\1",gsub("(\\*)","\\\\\\1",gsub("(\\^\\d+)","\\\\\\1",
+                                                                                                                                                                         substring(f_x_f[i_text],pos_parenthese_fermee,pos_power+3)))))))),
+                          paste("pow(",
+                                substring(f_x_f[i_text],pos_parenthese_fermee,pos_power+1),
+                                ",",power,")",
+                                sep=""),
+                          f_x_f[i_text])
+    }
+  }
   if(!is.na(cpp_file)){
     if(file.exists(paste(gsub("<.+$","",first[1]),".cpp",sep=""))){file.remove(paste(gsub("<.+$","",first[1]),".cpp",sep=""))}
     cat(f_x_f,file=cpp_file,sep="\n",append = TRUE)
@@ -266,6 +294,9 @@ f_x_Rcpp <- function(path_f_x, var_order, cpp_file = NA){
     if(file.exists(paste(gsub("<.+$","",first[1]),".cpp",sep=""))){file.remove(paste(gsub("<.+$","",first[1]),".cpp",sep=""))}
     cat(f_x_f,file=paste(gsub("<.+$","",first[1]),".cpp",sep=""),sep="\n",append = FALSE)
   }
+
+
+
 }
 
 
@@ -510,7 +541,7 @@ solver_epilogue <- '
 solver_end <- '
  Rcout << "  " ;
  Rcout << time_line(t) ;
- Rcout << " ... \\n" ;
+ Rcout << " ...  " ;
  }
 return M;
 }
