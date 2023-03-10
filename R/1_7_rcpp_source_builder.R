@@ -287,6 +287,12 @@ f_x_Rcpp <- function(path_f_x, var_order, cpp_file = NA){
                           f_x_f[i_text])
     }
   }
+
+  ## New pow correction
+
+  # f_x_f <- f_x_f %>%  str_replace_all()
+
+
   if(!is.na(cpp_file)){
     if(file.exists(paste(gsub("<.+$","",first[1]),".cpp",sep=""))){file.remove(paste(gsub("<.+$","",first[1]),".cpp",sep=""))}
     cat(f_x_f,file=cpp_file,sep="\n",append = TRUE)
@@ -329,7 +335,7 @@ using namespace Rcpp;
 using namespace std;
 ')
   Rcpp_export <- paste('// [[Rcpp::export]]')
-  Rcpp_Solver <-paste('// [[Rcpp::export]]
+  Rcpp_Solver <- paste('// [[Rcpp::export]]
 arma::mat Rcpp_solver(arma::mat& M,
                             int& first_date, int& last_date,
                             double& convergenceCriteria,

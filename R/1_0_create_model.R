@@ -89,7 +89,7 @@ Refer to the documentation for more information."))
   options(stringsAsFactors=FALSE)
   delta <- function(n,x, y=TRUE) NULL
   drule[["delta"]] <- alist(x=1, y=NULL) # y is just a logical
-
+  drule[["abs"]] <- alist(x=ifelse(x==0, 0, sign(x)))
 
   ################################
   #### 1.a Reading from outside source

@@ -1008,7 +1008,7 @@ arma::mat Rcpp_solver(arma::mat& M,
 
  Rcout << "  " ;
  Rcout << time_line(t) ;
- Rcout << " ... \n" ;
+ Rcout << " ...  " ;
  }
 return M;
 }

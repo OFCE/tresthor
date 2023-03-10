@@ -11,8 +11,7 @@ Sys.setenv("PKG_LIBS"="-lsuperlu")
 start_solver = as.Date("2010-01-01")
 end_solver = as.Date("2020-10-01")
 
-create_model("opale",model_source = "inst/Opale/opale.txt",rcpp= TRUE, rcpp_path = "tests")
-
+create_model("opale",model_source = "inst/Opale/opale.txt",rcpp= TRUE, rcpp_path = "tests", no_var_map = TRUE)
 
 coeffs <- readRDS("inst/Opale/coefficients_opale.rds")
 data_opale <- readRDS("inst/Opale/donnees_opale.rds")
@@ -27,7 +26,9 @@ empty_data<- add_coeffs(coeffs, database = empty_data,pos.coeff.name = 2,pos.coe
 solved <- thor_solver(model = opale,first_period = start_solver,last_period = end_solver,
                       main_variable = "td_pib7_ch",main_variable_fx = function(x)(x/lag(x)-1)*100,
 
-                      index_time = "date",rcpp = TRUE,database = empty_data)
+                      index_time = "date",rcpp= TRUE,database = empty_data, skip_tests = TRUE)
+
+
 # summaryRprof("profil")
 data_opale %>% mutate(pib_growth = (td_pib7_ch/lag(td_pib7_ch)-1)*100) %>% filter(date > "2015-01-01") %>%
   select(date,pib_growth)

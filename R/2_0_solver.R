@@ -38,85 +38,109 @@ thor_solver<-function(model,
   ##1.checks
   ##############
 
- model = model
+  model = model
   assertthat::assert_that(convergence_criteria < 0.01)
+
+
   #check that data contains all variables used in model
+  if(skip_tests == TRUE){
+    time_vec <- database[,index_time]
+    if(is.numeric(database[,index_time])){
+      database[,index_time]<-as.character(database[,index_time])
+      first_period <- as.character(first_period)
+      last_period <- as.character(last_period)
+      numeric_index_time = TRUE}else{numeric_index_time = FALSE}
+
+
+    model_variables <- c(model@exo_list,model@endo_list,model@coeff_list)[order(c(model@exo_list,model@endo_list,model@coeff_list))]
+    model_variables <- model_variables[order(model_variables)]
+    t_data<-as.data.frame(database[,model_variables])
+    rownames(t_data)<-time_vec
+
+    anchor_t <- which(database[,index_time]==first_period)
+    final_t <- which(database[,index_time]==last_period)
+
+  }
+
 
   if(skip_tests == FALSE){
-  if(data_model_checks(model,database)==FALSE){stop("Missing variables in the database. The solver won't work.'")}
-  if(!is.null(main_variable)){if(!main_variable %in% names(database)){cat(paste0(main_variable, " doesn't seem to exist in the database. the argument will be ignored. \n"))
-    main_variable <-NULL}}
 
-  if(tresthor:::time_model_checks(database,index_time)==FALSE){stop("The index_time variable is not suitable. The solver won't work'.")}
-  #check that first and last period are part of index_time and that first <= last
-  time_vec <- database[,index_time]
-  if(!first_period %in% time_vec){stop("The specified first period is not found in the time index variable")}
-  if(!last_period %in% time_vec){stop("The specified  last period is not found in the time index variable")}
+    if(data_model_checks(model,database)==FALSE){stop("Missing variables in the database. The solver won't work.'")}
+    if(!is.null(main_variable)){if(!main_variable %in% names(database)){cat(paste0(main_variable, " doesn't seem to exist in the database. the argument will be ignored. \n"))
+      main_variable <-NULL}}
+
+    if(tresthor:::time_model_checks(database,index_time)==FALSE){stop("The index_time variable is not suitable. The solver won't work'.")}
+    #check that first and last period are part of index_time and that first <= last
+    time_vec <- database[,index_time]
+    if(!first_period %in% time_vec){stop("The specified first period is not found in the time index variable")}
+    if(!last_period %in% time_vec){stop("The specified  last period is not found in the time index variable")}
 
 
-  if(is.numeric(database[,index_time])){
-    database[,index_time]<-as.character(database[,index_time])
-    first_period <- as.character(first_period)
-    last_period <- as.character(last_period)
-    numeric_index_time = TRUE}else{numeric_index_time = FALSE}
-  # t_data<-
+    if(is.numeric(database[,index_time])){
+      database[,index_time]<-as.character(database[,index_time])
+      first_period <- as.character(first_period)
+      last_period <- as.character(last_period)
+      numeric_index_time = TRUE}else{numeric_index_time = FALSE}
+    # t_data<-
 
-  model_variables <- names(model@var_map)
-  model_variables <- model_variables[order(model_variables)]
-  t_data<-as.data.frame(database[,model_variables])
-  rownames(t_data)<-time_vec
+    model_variables <- c(model@exo_list,model@endo_list,model@coeff_list)[order(c(model@exo_list,model@endo_list,model@coeff_list))]
+    model_variables <- model_variables[order(model_variables)]
+    t_data<-as.data.frame(database[,model_variables])
+    rownames(t_data)<-time_vec
 
-  anchor_t <- which(database[,index_time]==first_period)
-  final_t <- which(database[,index_time]==last_period)
+    anchor_t <- which(database[,index_time]==first_period)
+    final_t <- which(database[,index_time]==last_period)
 
-  #check for sufficient time_frame of data and that first and last period is ok
+    #check for sufficient time_frame of data and that first and last period is ok
 
-  # Check that the period before first_period is full so as to initialize the model
-  if(anchor_t == 1){stop("The first period cannot be the first observation the data base. The solver needs a previous full observation to initialize.")}else{
-    ##check that the previous period has no na.
-    check <-sum(is.na(t_data[anchor_t-1,model_variables]))
-    if(check >0){stop(" The solver needs a previous full observation to initialize.")}
+    # Check that the period before first_period is full so as to initialize the model
+    if(anchor_t == 1){stop("The first period cannot be the first observation the data base. The solver needs a previous full observation to initialize.")}else{
+      ##check that the previous period has no na.
+      check <-sum(is.na(t_data[anchor_t-1,model_variables]))
+      if(check >0){stop(" The solver needs a previous full observation to initialize.")}
     }
-  # Can the solver run ant the first period?
-  check_first_period <- time_solver_test_run(model,database,index_time,times = first_period)
+    # Can the solver run ant the first period?
+    check_first_period <- time_solver_test_run(model,database,index_time,times = first_period)
 
 
 
-  if(check_first_period == FALSE){
-    #1 determine how early you can go
+    if(check_first_period == FALSE){
+      #1 determine how early you can go
 
-    max_t<- which(database[,index_time]==max(database[,index_time]))
-    test_twelve<- c(min(max_t,anchor_t+4))
-    diagnosis<-time_solver_test_run(model,database,index_time,times = database[c((anchor_t):test_twelve),index_time])
-    if(sum(diagnosis)>0){cat(paste0("The solver cannot run from ",first_period,". It appears to be possible starting at ",min(names(diagnosis[TRUE])),". Try running it from there.") )}else{
-      cat(paste0("The solver cannot run from ",first_period,", nor from the next 12 periods. Try running it from at least there, or check your data."))
-    }
-    stop("Solver cannot be ran from the first period specified.")
+      max_t<- which(database[,index_time]==max(database[,index_time]))
+      test_twelve<- c(min(max_t,anchor_t+4))
+      diagnosis<-time_solver_test_run(model,database,index_time,times = database[c((anchor_t):test_twelve),index_time])
+      if(sum(diagnosis)>0){cat(paste0("The solver cannot run from ",first_period,". It appears to be possible starting at ",min(names(diagnosis[TRUE])),". Try running it from there.") )}else{
+        cat(paste0("The solver cannot run from ",first_period,", nor from the next 12 periods. Try running it from at least there, or check your data."))
+      }
+      stop("Solver cannot be ran from the first period specified.")
     }
 
     #sufficient data to run after?
-  check_subdata<- TRUE
-  if (!purrr::is_empty(model@exo_list) | !purrr::is_empty(model@coeff_list) ){
-  subdata <- database[c((anchor_t):final_t),c(index_time,model@exo_list,model@coeff_list)]
-  coeff_check <- (na_report_variables_times(subdata,subdata[,index_time],model@coeff_list,index_time))
-  if (length(coeff_check) == 0){cat(" \n")}else{
-    cat("The following coefficients are missing for at least one observation in the specified timeframe. \n")
-    print(coeff_check)
-  check_subdata<- FALSE
-  }
-  exo_check <- (na_report_variables_times(subdata,subdata[,index_time],model@exo_list,index_time))
-  if (length(exo_check) == 0){cat(" \n")}else{
-    cat("The following exogenous variables are missing for at least one observation in the specified timeframe. \n")
-    print(exo_check)
-  check_subdata<- FALSE
-  }
-}
-  if(check_subdata==FALSE){stop("Missing some variables to run the solver. Please check your data.")}
+    check_subdata<- TRUE
+    if (!purrr::is_empty(model@exo_list) | !purrr::is_empty(model@coeff_list) ){
+      subdata <- database[c((anchor_t):final_t),c(index_time,model@exo_list,model@coeff_list)]
+      coeff_check <- (na_report_variables_times(subdata,subdata[,index_time],model@coeff_list,index_time))
+      if (length(coeff_check) == 0){cat(" \n")}else{
+        cat("The following coefficients are missing for at least one observation in the specified timeframe. \n")
+        print(coeff_check)
+        check_subdata<- FALSE
+      }
+      exo_check <- (na_report_variables_times(subdata,subdata[,index_time],model@exo_list,index_time))
+      if (length(exo_check) == 0){cat(" \n")}else{
+        cat("The following exogenous variables are missing for at least one observation in the specified timeframe. \n")
+        print(exo_check)
+        check_subdata<- FALSE
+      }
+    }
+    if(check_subdata==FALSE){stop("Missing some variables to run the solver. Please check your data.")}
   }
   #############
   ##2.solver
   #############
 
+  anchor_t <- which(database[,index_time]==first_period)
+  final_t <- which(database[,index_time]==last_period)
 
   ## extractions des infos nécessaires du modèle
   all_endo <-model@endo_list
