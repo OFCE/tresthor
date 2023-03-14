@@ -24,6 +24,7 @@
 #' @param env Environment where to store the model object. Default: globalenv()
 #' @param rcpp_path path to directory where to store the rcpp source files for the model. Default: working directory
 #' @param no_var_map boolean. If TRUE, no vat_map we will be built, instead an empty list will be created. Default : FALSE
+#' @param use.superlu boolean. If SUPERLU library is installed, select TRUE to compile with superlu
 #'
 #' @return A thoR.model created in the environment.
 #' @examples
@@ -47,7 +48,8 @@ create_model <- function(model_name = "model",
                          exogenous = NULL,
                          coefficients = NULL,
                          equations = NULL, env= globalenv(),
-                         no_var_map = FALSE) {
+                         no_var_map = FALSE,
+                         use.superlu = FALSE) {
   ################################
   #### 0.a  Arguments verification
   ################################
@@ -282,7 +284,7 @@ Refer to the documentation for more information."))
     rcpp_source <- "none"
   if (rcpp == TRUE){
     cat("\n Creating the rcpp source files... \n")
-    create_model_rcpp_source(model_name,p_h_e_bool,p_h_e_jac,all_model_vars = all_model_variables,rcpp_path = rcpp_path)
+    create_model_rcpp_source(model_name,p_h_e_bool,p_h_e_jac,all_model_vars = all_model_variables,rcpp_path = rcpp_path, superlu = use.superlu)
     rcpp_source <- file.path(rcpp_path,paste0(model_name,"_pomme_newton.cpp"))
   }
     unlink("temp_paprfn",recursive = TRUE)

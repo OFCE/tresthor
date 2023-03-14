@@ -1,4 +1,4 @@
-#define ARMA_USE_SUPERLU 1
+# define ARMA_USE_SUPERLU 1
 
 // [[Rcpp::depends("RcppArmadillo")]]
 # include <RcppArmadillo.h>

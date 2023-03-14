@@ -6,7 +6,7 @@ library(tresthor)
 Sys.setenv("CPATH"="/opt/homebrew/include")
 Sys.setenv("LIBRARY_PATH"="/opt/homebrew/lib")
 Sys.setenv("PKG_LIBS"="-lsuperlu")
-classification <-"4x4"
+classification <-"8x8"
 
 create_model(str_c("threeme",classification),model_source = str_c("tests/threeme_",classification,"_thor.txt"),rcpp = TRUE,rcpp_path = "tests", no_var_map = TRUE)
 
