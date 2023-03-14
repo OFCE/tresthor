@@ -6,7 +6,7 @@
 #' @param p_h_e_jac list of 3 jacobians for prologue, heart, epilogue
 #' @param all_model_vars all variables that are in the model, in alphabetical order
 #' @param rcpp_path path where to store the rcpp file
-#' @author Charlotte Nudelmann (DG Tresor)
+#' @author Charlotte Nudelmann (DG Tresor) Anissa Saumtally
 #' @keywords internal
 #' @return rcpp source file
 create_model_rcpp_source <- function(model_name,p_h_e_bool,p_h_e_jac ,all_model_vars ,rcpp_path){

@@ -11,7 +11,7 @@ Sys.setenv("PKG_LIBS"="-lsuperlu")
 start_solver = as.Date("2010-01-01")
 end_solver = as.Date("2020-10-01")
 
-create_model("opale",model_source = "inst/Opale/opale.txt",rcpp= TRUE, rcpp_path = "tests", no_var_map = TRUE)
+create_model("opale",model_source = "inst/Opale/opale.txt",rcpp= TRUE, rcpp_path = "tests", no_var_map = TRUE,use.superlu = TRUE)
 
 coeffs <- readRDS("inst/Opale/coefficients_opale.rds")
 data_opale <- readRDS("inst/Opale/donnees_opale.rds")

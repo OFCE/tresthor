@@ -15,7 +15,8 @@ create_model(
   coefficients = NULL,
   equations = NULL,
   env = globalenv(),
-  no_var_map = FALSE
+  no_var_map = FALSE,
+  use.superlu = FALSE
 )
 }
 \arguments{
@@ -40,6 +41,8 @@ create_model(
 \item{env}{Environment where to store the model object. Default: globalenv()}
 
 \item{no_var_map}{boolean. If TRUE, no vat_map we will be built, instead an empty list will be created. Default : FALSE}
+
+\item{use.superlu}{boolean. If SUPERLU library is installed, select TRUE to compile a rcpp model with superlu}
 }
 \value{
 A thoR.model created in the environment.
