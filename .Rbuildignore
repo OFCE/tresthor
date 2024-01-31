@@ -1,6 +1,7 @@
 ^.*\.Rproj$
 ^\.Rproj\.user$
 ^tests$
+^largemodel
 ^dev_history\.r$
 ^old$
 ^essais$
