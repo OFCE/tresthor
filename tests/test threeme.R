@@ -8,7 +8,9 @@ Sys.setenv("LIBRARY_PATH"="/opt/homebrew/lib")
 Sys.setenv("PKG_LIBS"="-lsuperlu")
 classification <-"8x8"
 
-create_model(str_c("threeme",classification),model_source = str_c("tests/threeme_",classification,"_thor.txt"),rcpp = TRUE,rcpp_path = "tests", no_var_map = TRUE)
+create_model(str_c("threeme",classification),model_source = str_c("tests/threeme_",classification,"_thor.txt"),rcpp = TRUE,
+             rcpp_path = "tests", use.superlu = TRUE,
+             no_var_map = TRUE)
 
 data_3me <- readRDS(str_c("tests/data3me_",classification,".rds"))
 

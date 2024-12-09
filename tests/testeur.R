@@ -40,3 +40,42 @@ t_data[timeref,s_endo]
 
 x_test <- unlist(x_n)
 x_test - x_n1
+
+
+
+## Mesange
+start_solver = "1995Q1"
+end_solver = "2100Q4"
+## Voir .dynlib
+Rprof("profil")
+# create_model("mesange",model_source = "tests/mes17.txt",rcpp = TRUE,rcpp_path = "tests")
+create_model("mesange_superlu",model_source = "tests/mes17.txt",rcpp = TRUE,rcpp_path = "tests",use.superlu = TRUE)
+Rprof(NULL)
+summaryRprof("profil")
+save_model(mesange,folder_path = "tests/")
+load_model(file = "tests/mesange.rds")
+
+data_mesange <- readRDS("tests/mesange_data.rds")
+coeff_mes <- read.csv("tests/coeff_Mesange_2017.csv",sep = ";")
+
+empty_data <- data_mesange %>%
+  select(date, all_of(mesange@endo_list)) %>%
+  mutate_if(is.numeric,~ifelse(date > "1995Q1", NA,.x)) %>%
+  left_join(data_mesange %>% select(date,year, all_of(mesange@exo_list)))
+
+
+empty_data<- add_coeffs(coeff_mes, database = empty_data )
+
+Rprof("profil")
+solved <- thor_solver(model = mesange_superlu,
+                      first_period = start_solver,
+                      last_period = end_solver,
+                      index_time = "date",
+                      rcpp = TRUE,
+                      database = empty_data)
+Rprof(NULL)
+summaryRprof("profil")
+
+
+
+
