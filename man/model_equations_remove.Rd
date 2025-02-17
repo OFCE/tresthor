@@ -13,7 +13,8 @@ model_equations_remove(
   algo = TRUE,
   rcpp = FALSE,
   env = globalenv(),
-  rcpp_path = getwd()
+  rcpp_path = getwd(),
+  use.superlu = FALSE
 )
 }
 \arguments{
@@ -32,6 +33,8 @@ model_equations_remove(
 \item{env}{Environment where to store the model object. Default : globalenv()}
 
 \item{rcpp_path}{path to directory where to store the rcpp source files for the model. Default : working directory}
+
+\item{use.superlu}{boolean. If SUPERLU library is installed, select TRUE to compile a rcpp model with superlu}
 }
 \value{
 a thor.model in the selected environment

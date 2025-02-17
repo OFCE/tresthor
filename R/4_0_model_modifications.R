@@ -11,6 +11,7 @@
 #' @param rcpp boolean. TRUE if using Rcpp for solver (recommended for large model). Default : FALSE
 #' @param env Environment where to store the model object. Default : globalenv()
 #' @param rcpp_path path to directory where to store the rcpp source files for the model. Default : working directory
+#' @param use.superlu boolean. If SUPERLU library is installed, select TRUE to compile a rcpp model with superlu
 #' @return a thor model in the global environment
 #' @export
 #' @import Deriv
@@ -20,7 +21,7 @@
 #' @import RcppArmadillo
 #'
 #'
-model_endo_exo_switch<-function(base_model , new_model_name, new_endo, new_exo, algo = TRUE, rcpp = FALSE,env=globalenv(),rcpp_path = getwd() ) {
+model_endo_exo_switch<-function(base_model , new_model_name, new_endo, new_exo, algo = TRUE, rcpp = FALSE,env=globalenv(),rcpp_path = getwd() , use.superlu = FALSE) {
   new_endo<-unique(new_endo)
   new_exo<-unique(new_exo)
   ################################
@@ -202,7 +203,15 @@ rcpp_path<-gsub("/$","",rcpp_path)
 rcpp_source <- "none"
 if (rcpp == TRUE){
   cat("\n Creating the rcpp source files... \n")
-  create_model_rcpp_source(new_model_name,p_h_e_bool,p_h_e_jac,all_model_vars = all_model_variables,rcpp_path = rcpp_path)
+
+  if(use.superlu){
+    create_model_rcpp_source(
+      model_name,p_h_e_bool,p_h_e_jac,all_model_vars = all_model_variables,rcpp_path = rcpp_path)
+  }else{
+    create_model_rcpp_source_nonsuperlu(
+      model_name,p_h_e_bool,p_h_e_jac,all_model_vars = all_model_variables,rcpp_path = rcpp_path)
+  }
+
   rcpp_source <-paste0(rcpp_path,"/",new_model_name,"_pomme_newton.cpp")
 }
 unlink("temp_paprfn",recursive = TRUE)
@@ -273,6 +282,7 @@ cat("Model successfully built ! \n")
 #' @param rcpp boolean. TRUE if using Rcpp for solver (recommended for large model). Default : FALSE
 #' @param env Environment where to store the model object. Default : globalenv()
 #' @param rcpp_path path to directory where to store the rcpp source files for the model. Default : working directory
+#' @param use.superlu boolean. If SUPERLU library is installed, select TRUE to compile a rcpp model with superlu
 #' @return a thor.model in the selected environment
 #' @export
 #' @import Deriv
@@ -281,7 +291,7 @@ cat("Model successfully built ! \n")
 #' @import Rcpp
 #' @import RcppArmadillo
 #'
-model_equations_remove<-function(base_model , new_model_name, equations_to_remove, endos_to_remove, algo = TRUE, rcpp = FALSE,env=globalenv(),rcpp_path = getwd() ) {
+model_equations_remove<-function(base_model , new_model_name, equations_to_remove, endos_to_remove, algo = TRUE, rcpp = FALSE,env=globalenv(),rcpp_path = getwd() , use.superlu = FALSE) {
   equations_list_old<-base_model@equation_list
   ################################
   #### 0.a  New arguments
@@ -494,7 +504,14 @@ model_equations_remove<-function(base_model , new_model_name, equations_to_remov
   rcpp_source <- "none"
   if (rcpp == TRUE){
     cat("\n Creating the rcpp source files... \n")
-    create_model_rcpp_source(new_model_name,p_h_e_bool,p_h_e_jac,all_model_vars = all_model_variables,rcpp_path = rcpp_path)
+
+    if(use.superlu){
+      create_model_rcpp_source(
+        model_name,p_h_e_bool,p_h_e_jac,all_model_vars = all_model_variables,rcpp_path = rcpp_path)
+    }else{
+      create_model_rcpp_source_nonsuperlu(
+        model_name,p_h_e_bool,p_h_e_jac,all_model_vars = all_model_variables,rcpp_path = rcpp_path)
+    }
     rcpp_source <-paste0(rcpp_path,"/",new_model_name,"_pomme_newton.cpp")
   }
   unlink("temp_paprfn",recursive = TRUE)
@@ -563,7 +580,7 @@ model_equations_remove<-function(base_model , new_model_name, equations_to_remov
 #' @param rcpp boolean. TRUE if using Rcpp for solver (recommended for large model). Default : FALSE
 #' @param env Environment where to store the model object. Default : globalenv()
 #' @param rcpp_path path to directory where to store the rcpp source files for the model. Default : working directory
-#'
+#' @param use.superlu boolean. If SUPERLU library is installed, select TRUE to compile a rcpp model with superlu
 #' @return a thor.model in the selected environment
 #' @export
 #' @import Deriv
@@ -574,7 +591,7 @@ model_equations_remove<-function(base_model , new_model_name, equations_to_remov
 #'
 model_equations_add<-function(base_model , new_model_name,
                               thor_equations_add= NULL,
-                              algo = TRUE, rcpp = FALSE,env=globalenv(),rcpp_path = getwd() ) {
+                              algo = TRUE, rcpp = FALSE,env=globalenv(),rcpp_path = getwd() , use.superlu = FALSE ) {
 
 
   ###############################
@@ -813,7 +830,16 @@ model_equations_add<-function(base_model , new_model_name,
   rcpp_source <- "none"
   if (rcpp == TRUE){
     cat("\n Creating the rcpp source files... \n")
-    create_model_rcpp_source(new_model_name,p_h_e_bool,p_h_e_jac,all_model_vars = all_model_variables,rcpp_path = rcpp_path)
+
+    if(use.superlu){
+      create_model_rcpp_source(
+        model_name,p_h_e_bool,p_h_e_jac,all_model_vars = all_model_variables,rcpp_path = rcpp_path)
+    }else{
+      create_model_rcpp_source_nonsuperlu(
+        model_name,p_h_e_bool,p_h_e_jac,all_model_vars = all_model_variables,rcpp_path = rcpp_path)
+    }
+
+
     rcpp_source <-paste0(rcpp_path,"/",new_model_name,"_pomme_newton.cpp")
   }
   unlink("temp_paprfn",recursive = TRUE)
