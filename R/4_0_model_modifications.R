@@ -206,10 +206,10 @@ if (rcpp == TRUE){
 
   if(use.superlu){
     create_model_rcpp_source(
-      model_name,p_h_e_bool,p_h_e_jac,all_model_vars = all_model_variables,rcpp_path = rcpp_path)
+      model_name=new_model_name,p_h_e_bool,p_h_e_jac,all_model_vars = all_model_variables,rcpp_path = rcpp_path)
   }else{
     create_model_rcpp_source_nonsuperlu(
-      model_name,p_h_e_bool,p_h_e_jac,all_model_vars = all_model_variables,rcpp_path = rcpp_path)
+      model_name=new_model_name,p_h_e_bool,p_h_e_jac,all_model_vars = all_model_variables,rcpp_path = rcpp_path)
   }
 
   rcpp_source <-paste0(rcpp_path,"/",new_model_name,"_pomme_newton.cpp")
@@ -507,10 +507,10 @@ model_equations_remove<-function(base_model , new_model_name, equations_to_remov
 
     if(use.superlu){
       create_model_rcpp_source(
-        model_name,p_h_e_bool,p_h_e_jac,all_model_vars = all_model_variables,rcpp_path = rcpp_path)
+        model_name=new_model_name,p_h_e_bool,p_h_e_jac,all_model_vars = all_model_variables,rcpp_path = rcpp_path)
     }else{
       create_model_rcpp_source_nonsuperlu(
-        model_name,p_h_e_bool,p_h_e_jac,all_model_vars = all_model_variables,rcpp_path = rcpp_path)
+        model_name=new_model_name,p_h_e_bool,p_h_e_jac,all_model_vars = all_model_variables,rcpp_path = rcpp_path)
     }
     rcpp_source <-paste0(rcpp_path,"/",new_model_name,"_pomme_newton.cpp")
   }
@@ -833,10 +833,10 @@ model_equations_add<-function(base_model , new_model_name,
 
     if(use.superlu){
       create_model_rcpp_source(
-        model_name,p_h_e_bool,p_h_e_jac,all_model_vars = all_model_variables,rcpp_path = rcpp_path)
+        model_name=new_model_name,p_h_e_bool,p_h_e_jac,all_model_vars = all_model_variables,rcpp_path = rcpp_path)
     }else{
       create_model_rcpp_source_nonsuperlu(
-        model_name,p_h_e_bool,p_h_e_jac,all_model_vars = all_model_variables,rcpp_path = rcpp_path)
+        model_name=new_model_name,p_h_e_bool,p_h_e_jac,all_model_vars = all_model_variables,rcpp_path = rcpp_path)
     }
 
 
