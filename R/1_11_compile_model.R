@@ -105,6 +105,16 @@ compile_model_cpp <- function(path, rebuild = FALSE, cache = NULL,
                               debug = FALSE, quiet = TRUE) {
 
   stopifnot(file.exists(path))
+
+  ## The generated source carries `// [[Rcpp::depends(RcppEigen)]]`, which
+  ## Rcpp resolves against the installed package at compile time. Check it
+  ## here so the failure is a clear message rather than a compiler error
+  ## about a missing Eigen/Sparse header.
+  if (!requireNamespace("RcppEigen", quietly = TRUE)) {
+    stop("Package 'RcppEigen' is required to compile a sparse model. ",
+         "Install it with install.packages(\"RcppEigen\").", call. = FALSE)
+  }
+
   key <- normalizePath(path)
 
   if (!rebuild && !is.null(.tresthor_compiled[[key]])) {

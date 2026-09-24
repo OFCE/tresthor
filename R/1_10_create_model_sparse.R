@@ -49,7 +49,9 @@ create_model_sparse <- function(model_name = "model",
   options(stringsAsFactors = FALSE)
   delta <- function(n, x, y = TRUE) NULL
   drule[["delta"]] <- alist(x = 1, y = NULL)
-  drule[["abs"]]   <- alist(x = ifelse(x == 0, 0, sign(x)))
+  ## quote() rather than alist(), which is equivalent here but keeps R's code
+  ## checker from reading the rule's `x` as an undefined global.
+  drule[["abs"]]   <- list(x = quote(ifelse(x == 0, 0, sign(x))))
 
   ################################
   #### 1. Read and check the model
@@ -112,7 +114,18 @@ create_model_sparse <- function(model_name = "model",
   decomposition <- decomposing_model(endogenous_variables = endo,
                                      eq_var_matrix = eqns,
                                      decomposition = algo)
-  invisible(list2env(decomposition, environment()))
+
+  ## Unpacked explicitly rather than with list2env(), so that the block
+  ## variables are visible to readers and to R's code checker.
+  prologue <- decomposition$prologue
+  heart    <- decomposition$heart
+  epilogue <- decomposition$epilogue
+  prologue_endo <- sort(decomposition$prologue_endo)
+  heart_endo    <- sort(decomposition$heart_endo)
+  epilogue_endo <- sort(decomposition$epilogue_endo)
+  prologue_equations <- decomposition$prologue_equations
+  heart_equations    <- decomposition$heart_equations
+  epilogue_equations <- decomposition$epilogue_equations
 
   equations_list$part <- "tbd"
   equations_list$part[equations_list$id %in% prologue_equations] <- "prologue"
@@ -124,10 +137,6 @@ create_model_sparse <- function(model_name = "model",
   print(table(equations_list$part))
 
   equations_list$new_formula <- formatting_formulas(equations_list$formula)
-
-  prologue_endo <- sort(prologue_endo)
-  heart_endo    <- sort(heart_endo)
-  epilogue_endo <- sort(epilogue_endo)
 
   ################################
   #### 4. Sparse symbolic jacobians
