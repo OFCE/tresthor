@@ -14,6 +14,7 @@ thor_solver_sparse(
   atol = 1e-08,
   max_iter = 100L,
   damping = TRUE,
+  cache = NULL,
   verbose = TRUE,
   diagnostics = FALSE
 )
@@ -41,6 +42,10 @@ near zero. Default 1e-8.}
 
 \item{damping}{boolean. Backtrack the Newton step when it would increase the
 residual. Default TRUE.}
+
+\item{cache}{directory in which to cache the compiled object between R
+sessions, FALSE to disable, or NULL (the default) for
+\code{tresthor_cache_dir()}.}
 
 \item{verbose}{boolean. Print progress per period. Default TRUE.}
 

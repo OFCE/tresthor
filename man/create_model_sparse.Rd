@@ -15,7 +15,8 @@ create_model_sparse(
   equations = NULL,
   env = globalenv(),
   no_var_map = TRUE,
-  compile = TRUE
+  compile = TRUE,
+  cache = NULL
 )
 }
 \arguments{
@@ -35,6 +36,11 @@ only when \code{model_source} is NULL.}
 \item{no_var_map}{boolean. TRUE to skip building the variable map.}
 
 \item{compile}{boolean. TRUE to compile the generated C++ immediately.}
+
+\item{cache}{directory in which to cache the compiled object between R
+sessions, FALSE to disable, or NULL (the default) for
+\code{tresthor_cache_dir()}. Rebuilding a model whose equations have not
+changed then costs no compilation at all.}
 }
 \value{
 A \code{thoR.model}, created in \code{env} and also returned invisibly.

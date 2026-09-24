@@ -21,6 +21,67 @@
 ## session would silently be solved with the first one's code.
 .tresthor_compiled <- new.env(parent = emptyenv())
 
+#' Directory used to cache compiled models between sessions
+#'
+#' Without a persistent cache, `Rcpp::sourceCpp()` builds into `tempdir()` and
+#' so recompiles every model once per R session -- around 14 s for ThreeME
+#' 4x4 and 30 s for 8x8, and considerably more for larger models. With one,
+#' the compilation happens once per machine and per version of the model.
+#'
+#' Rcpp keys its cache on the hash of the source, the platform and its own
+#' version, so an edited model or a changed toolchain rebuilds by itself. It
+#' does not key on the R version, and R binaries are not compatible across
+#' minor releases, so that is added here.
+#'
+#' Set `options(tresthor.cache.dir = "...")` to move it, or
+#' `options(tresthor.cache.dir = FALSE)` to disable caching entirely.
+#'
+#' @return the cache directory, created if needed, or NULL if caching is off
+#' @export
+tresthor_cache_dir <- function() {
+
+  d <- getOption("tresthor.cache.dir", NULL)
+  if (isFALSE(d)) return(NULL)
+
+  if (is.null(d)) {
+    d <- tryCatch(tools::R_user_dir("tresthor", "cache"),
+                  error = function(e) file.path(tempdir(), "tresthor-cache"))
+  }
+
+  d <- file.path(path.expand(d), paste0("R-", getRversion()))
+  if (!dir.exists(d)) {
+    ok <- dir.create(d, recursive = TRUE, showWarnings = FALSE)
+    if (!ok && !dir.exists(d)) {
+      warning("Could not create the tresthor cache directory '", d,
+              "'. Models will be recompiled each session.", call. = FALSE)
+      return(NULL)
+    }
+  }
+  d
+}
+
+#' Remove cached compiled models
+#'
+#' @param confirm boolean. FALSE to skip the interactive confirmation.
+#' @return the number of files removed, invisibly
+#' @export
+clear_model_cache <- function(confirm = interactive()) {
+  d <- tresthor_cache_dir()
+  if (is.null(d) || !dir.exists(d)) {
+    cat("Nothing cached.\n")
+    return(invisible(0L))
+  }
+  files <- list.files(d, recursive = TRUE, full.names = TRUE)
+  size <- sum(file.info(files)$size, na.rm = TRUE)
+  cat("Cache: ", d, "\n", length(files), " files, ",
+      round(size / 1024^2, 1), " MB\n", sep = "")
+  if (confirm && !isTRUE(utils::askYesNo("Delete?"))) return(invisible(0L))
+  unlink(d, recursive = TRUE)
+  ## also drop anything loaded in this session, so the next solve rebuilds
+  rm(list = ls(.tresthor_compiled, all.names = TRUE), envir = .tresthor_compiled)
+  invisible(length(files))
+}
+
 #' Compile a generated model source file and return its functions
 #'
 #' Compiles with the platform's usual flags minus `-g`, by way of a temporary
@@ -30,13 +91,18 @@
 #' compiles once per session.
 #'
 #' @param path path to the generated .cpp file
-#' @param rebuild boolean. TRUE to compile even if this file is already loaded.
+#' @param rebuild boolean. TRUE to compile from scratch, ignoring both the
+#'   in-session and the on-disk cache.
+#' @param cache directory in which to cache the compiled object between
+#'   sessions, FALSE to disable, or NULL (the default) for
+#'   `tresthor_cache_dir()`.
 #' @param debug boolean. TRUE to keep `-g` (much slower; only useful when
 #'   debugging the code generator itself). Default FALSE.
 #' @param quiet boolean. TRUE to suppress compiler output. Default TRUE.
 #' @return an environment holding the model's compiled functions
 #' @keywords internal
-compile_model_cpp <- function(path, rebuild = FALSE, debug = FALSE, quiet = TRUE) {
+compile_model_cpp <- function(path, rebuild = FALSE, cache = NULL,
+                              debug = FALSE, quiet = TRUE) {
 
   stopifnot(file.exists(path))
   key <- normalizePath(path)
@@ -72,7 +138,11 @@ compile_model_cpp <- function(path, rebuild = FALSE, debug = FALSE, quiet = TRUE
     }, add = TRUE)
   }
 
-  Rcpp::sourceCpp(path, env = env, rebuild = rebuild, verbose = !quiet)
+  cache_dir <- if (is.null(cache)) tresthor_cache_dir() else if (isFALSE(cache)) NULL else cache
+  if (is.null(cache_dir)) cache_dir <- tempdir()
+
+  Rcpp::sourceCpp(path, env = env, rebuild = rebuild,
+                  cacheDir = cache_dir, verbose = !quiet)
 
   if (!exists("sparse_solver", envir = env, inherits = FALSE)) {
     stop("'", basename(path), "' does not define sparse_solver(). ",

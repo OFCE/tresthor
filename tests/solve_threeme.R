@@ -130,6 +130,25 @@ cat("\nSaved to", build_dir, "\n")
 ##   data  <- readRDS("tests/data3me_4x4.rds")
 ##   res   <- thor_solver_sparse(model, 2016, 2050, data, index_time = "year")
 ##
-## The generated C++ is recompiled once on first use (a few seconds, since
-## Rcpp caches the compiled object), then reused for the rest of the session.
 ## Several models can be loaded at once; each keeps its own compiled code.
+##
+## ---- On compilation and caching -------------------------------------------
+##
+## Compiled models are cached on disk between sessions, so a given version of
+## a model is compiled once per machine rather than once per session:
+##
+##   first ever build of ThreeME 4x4       ~31 s  (19 s symbolic + 14 s compile)
+##   rebuilding it unchanged               ~20 s  (compile served from cache)
+##   reloading and solving in a new session  0.5 s
+##
+## The cache invalidates itself when the equations change, and also on a new
+## platform, compiler, R version or Rcpp version, so a stale object cannot be
+## picked up. Editing the model rebuilds normally.
+##
+##   tresthor_cache_dir()          # where it lives
+##   clear_model_cache()           # empty it
+##   options(tresthor.cache.dir = "/path")   # move it, e.g. onto a shared disk
+##   options(tresthor.cache.dir = FALSE)     # switch caching off
+##
+## Passing cache = FALSE to create_model_sparse() or thor_solver_sparse() does
+## the same for a single call.

@@ -21,6 +21,10 @@
 #' @param env environment in which to create the model object.
 #' @param no_var_map boolean. TRUE to skip building the variable map.
 #' @param compile boolean. TRUE to compile the generated C++ immediately.
+#' @param cache directory in which to cache the compiled object between R
+#'   sessions, FALSE to disable, or NULL (the default) for
+#'   `tresthor_cache_dir()`. Rebuilding a model whose equations have not
+#'   changed then costs no compilation at all.
 #'
 #' @return A `thoR.model`, created in `env` and also returned invisibly.
 #' @import Deriv
@@ -36,7 +40,8 @@ create_model_sparse <- function(model_name = "model",
                                 equations = NULL,
                                 env = globalenv(),
                                 no_var_map = TRUE,
-                                compile = TRUE) {
+                                compile = TRUE,
+                                cache = NULL) {
 
   t_start <- Sys.time()
   cat("Building model '", model_name, "' (sparse)\n\n", sep = "")
@@ -154,8 +159,8 @@ create_model_sparse <- function(model_name = "model",
   cat("\nStep 5: generating the sparse C++ solver...\n")
   rcpp_source <- create_model_rcpp_sparse(model_name, blocks,
                                           all_model_variables, rcpp_path)
-  cat("   written to ", rcpp_source, " (",
-      round(file.info(rcpp_source)$size / 1024), " KB)\n", sep = "")
+  cat("   ", if (isTRUE(attr(rcpp_source, "unchanged"))) "unchanged: " else "written to ",
+      rcpp_source, " (", round(file.info(rcpp_source)$size / 1024), " KB)\n", sep = "")
 
   ################################
   #### 6. Model object
@@ -191,8 +196,9 @@ create_model_sparse <- function(model_name = "model",
 
   if (compile) {
     cat("\nStep 6: compiling...\n")
-    el <- system.time(compile_model_cpp(rcpp_source, rebuild = TRUE))[["elapsed"]]
-    cat("   compiled in ", round(el, 1), " s\n", sep = "")
+    el <- system.time(compile_model_cpp(rcpp_source, cache = cache))[["elapsed"]]
+    cat("   compiled in ", round(el, 1), " s",
+        if (el < 1) "  (from cache)" else "", "\n", sep = "")
   }
 
   cat("\nModel built in ",

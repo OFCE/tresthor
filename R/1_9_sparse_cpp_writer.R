@@ -396,6 +396,17 @@ create_model_rcpp_sparse <- function(model_name, blocks, all_model_vars, rcpp_pa
     "}"
   ))
 
-  writeLines(lines, f)
+  ## Rcpp's compile cache is invalidated by the source file's modification
+  ## time, not only by its contents, so rewriting an identical file would
+  ## force a full recompile. Code generation here is deterministic, so a model
+  ## whose equations have not changed can keep its file, and its cached
+  ## object, untouched.
+  new_txt <- paste0(paste(lines, collapse = "\n"), "\n")
+  unchanged <- file.exists(f) &&
+    identical(readChar(f, file.size(f), useBytes = TRUE), new_txt)
+
+  if (!unchanged) writeLines(lines, f)
+
+  attr(f, "unchanged") <- unchanged
   f
 }

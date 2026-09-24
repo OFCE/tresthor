@@ -19,6 +19,9 @@
 #' @param max_iter maximum Newton iterations per block and period. Default 100.
 #' @param damping boolean. Backtrack the Newton step when it would increase the
 #'   residual. Default TRUE.
+#' @param cache directory in which to cache the compiled object between R
+#'   sessions, FALSE to disable, or NULL (the default) for
+#'   `tresthor_cache_dir()`.
 #' @param verbose boolean. Print progress per period. Default TRUE.
 #' @param diagnostics boolean. Return iteration counts and residuals as
 #'   attributes of the result. Default FALSE.
@@ -34,6 +37,7 @@ thor_solver_sparse <- function(model,
                                atol = 1e-8,
                                max_iter = 100L,
                                damping = TRUE,
+                               cache = NULL,
                                verbose = TRUE,
                                diagnostics = FALSE) {
 
@@ -88,7 +92,7 @@ thor_solver_sparse <- function(model,
 
   ## Compiled into its own environment and cached per source file, so that
   ## several models can be used in one session without clashing.
-  cpp <- compile_model_cpp(model@rcpp_source)
+  cpp <- compile_model_cpp(model@rcpp_source, cache = cache)
 
   t_run <- system.time({
     out <- cpp$sparse_solver(M,

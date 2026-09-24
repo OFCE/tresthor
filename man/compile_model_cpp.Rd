@@ -4,12 +4,23 @@
 \alias{compile_model_cpp}
 \title{Compile a generated model source file and return its functions}
 \usage{
-compile_model_cpp(path, rebuild = FALSE, debug = FALSE, quiet = TRUE)
+compile_model_cpp(
+  path,
+  rebuild = FALSE,
+  cache = NULL,
+  debug = FALSE,
+  quiet = TRUE
+)
 }
 \arguments{
 \item{path}{path to the generated .cpp file}
 
-\item{rebuild}{boolean. TRUE to compile even if this file is already loaded.}
+\item{rebuild}{boolean. TRUE to compile from scratch, ignoring both the
+in-session and the on-disk cache.}
+
+\item{cache}{directory in which to cache the compiled object between
+sessions, FALSE to disable, or NULL (the default) for
+\code{tresthor_cache_dir()}.}
 
 \item{debug}{boolean. TRUE to keep \code{-g} (much slower; only useful when
 debugging the code generator itself). Default FALSE.}
