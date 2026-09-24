@@ -1,8 +1,8 @@
-## Compilation of generated model sources.
+## Compilation and loading of generated model sources.
 ##
 ## Generated model code is unlike hand-written code: a few thousand very large
-## arithmetic expressions with no control flow. Two of R's default compiler
-## settings behave pathologically on it.
+## arithmetic expressions with no control flow. One of R's default compiler
+## settings behaves pathologically on it.
 ##
 ## Measured on ThreeME 4x4 (1729 equations, 370 KB of generated C++):
 ##
@@ -14,50 +14,109 @@
 ## costs 25x the compile time. The effect grows with model size, so on a 25k
 ## equation model it is the difference between minutes and an hour.
 
-#' Compile a generated model source file
+## Compiled models, keyed by the absolute path of their source file. Every
+## generated file exports functions with the same names (`sparse_solver`,
+## `sparse_residuals`), so each model is loaded into its own environment
+## rather than into the global one: otherwise a second model in the same
+## session would silently be solved with the first one's code.
+.tresthor_compiled <- new.env(parent = emptyenv())
+
+#' Compile a generated model source file and return its functions
 #'
 #' Compiles with the platform's usual flags minus `-g`, by way of a temporary
 #' `R_MAKEVARS_USER` file. The user's own `~/.R/Makevars` is left untouched.
 #'
+#' The result is cached per source file, so solving the same model repeatedly
+#' compiles once per session.
+#'
 #' @param path path to the generated .cpp file
+#' @param rebuild boolean. TRUE to compile even if this file is already loaded.
 #' @param debug boolean. TRUE to keep `-g` (much slower; only useful when
 #'   debugging the code generator itself). Default FALSE.
 #' @param quiet boolean. TRUE to suppress compiler output. Default TRUE.
-#' @return the elapsed time in seconds, invisibly
+#' @return an environment holding the model's compiled functions
 #' @keywords internal
-compile_model_cpp <- function(path, debug = FALSE, quiet = TRUE) {
+compile_model_cpp <- function(path, rebuild = FALSE, debug = FALSE, quiet = TRUE) {
 
   stopifnot(file.exists(path))
+  key <- normalizePath(path)
 
-  if (debug) {
-    t <- system.time(Rcpp::sourceCpp(path, rebuild = TRUE, verbose = !quiet))
-    return(invisible(t[["elapsed"]]))
+  if (!rebuild && !is.null(.tresthor_compiled[[key]])) {
+    return(.tresthor_compiled[[key]])
   }
 
-  ## Start from the platform's own flags so we keep -arch, -falign-functions
-  ## and anything else the build was configured with, and only drop -g.
-  cxxflags <- tryCatch(system2("R", c("CMD", "config", "CXXFLAGS"),
-                               stdout = TRUE, stderr = FALSE),
-                       error = function(e) character(0))
-  cxxflags <- paste(cxxflags, collapse = " ")
-  if (!nzchar(trimws(cxxflags))) cxxflags <- "-O2"
-  ## drop -g / -ggdb / -g3 ... but keep -g0 if it is already there
-  flags <- strsplit(trimws(cxxflags), "\\s+")[[1]]
-  flags <- flags[!grepl("^-g([0-9]|gdb.*)?$", flags)]
-  cxxflags <- paste(c(flags, "-g0"), collapse = " ")
+  env <- new.env(parent = globalenv())
 
-  mk <- tempfile(pattern = "tresthor_makevars_")
-  writeLines(c(paste0("CXXFLAGS = ", cxxflags),
-               paste0("CXX17FLAGS = ", cxxflags),
-               paste0("CXX20FLAGS = ", cxxflags)), mk)
+  if (!debug) {
+    ## Start from the platform's own flags so we keep -arch, -falign-functions
+    ## and anything else the build was configured with, and only drop -g.
+    cxxflags <- tryCatch(system2("R", c("CMD", "config", "CXXFLAGS"),
+                                 stdout = TRUE, stderr = FALSE),
+                         error = function(e) character(0))
+    cxxflags <- paste(cxxflags, collapse = " ")
+    if (!nzchar(trimws(cxxflags))) cxxflags <- "-O2"
+    flags <- strsplit(trimws(cxxflags), "\\s+")[[1]]
+    flags <- flags[!grepl("^-g([0-9]|gdb.*)?$", flags)]   # keep an explicit -g0
+    cxxflags <- paste(c(flags, "-g0"), collapse = " ")
 
-  old <- Sys.getenv("R_MAKEVARS_USER", unset = NA)
-  Sys.setenv(R_MAKEVARS_USER = mk)
-  on.exit({
-    if (is.na(old)) Sys.unsetenv("R_MAKEVARS_USER") else Sys.setenv(R_MAKEVARS_USER = old)
-    unlink(mk)
-  }, add = TRUE)
+    mk <- tempfile(pattern = "tresthor_makevars_")
+    writeLines(c(paste0("CXXFLAGS = ", cxxflags),
+                 paste0("CXX17FLAGS = ", cxxflags),
+                 paste0("CXX20FLAGS = ", cxxflags)), mk)
 
-  t <- system.time(Rcpp::sourceCpp(path, rebuild = TRUE, verbose = !quiet))
-  invisible(t[["elapsed"]])
+    old <- Sys.getenv("R_MAKEVARS_USER", unset = NA)
+    Sys.setenv(R_MAKEVARS_USER = mk)
+    on.exit({
+      if (is.na(old)) Sys.unsetenv("R_MAKEVARS_USER") else Sys.setenv(R_MAKEVARS_USER = old)
+      unlink(mk)
+    }, add = TRUE)
+  }
+
+  Rcpp::sourceCpp(path, env = env, rebuild = rebuild, verbose = !quiet)
+
+  if (!exists("sparse_solver", envir = env, inherits = FALSE)) {
+    stop("'", basename(path), "' does not define sparse_solver(). ",
+         "Was it generated by create_model_sparse()?")
+  }
+
+  .tresthor_compiled[[key]] <- env
+  env
+}
+
+#' Residuals of a model's equations at one observation
+#'
+#' Evaluates every equation of the model at a given row of the data and
+#' returns the largest absolute residual per block. Useful to check that a
+#' solution really does satisfy the model, and to compare solvers.
+#'
+#' @param model a `thoR.model` built by `create_model_sparse()`
+#' @param database data.frame holding the data
+#' @param periods the periods to check, as found in `index_time`. Default: all
+#'   rows except the first.
+#' @param index_time name of the time column in `database`
+#' @return a matrix of maximum absolute residuals, periods by block
+#' @export
+model_residuals <- function(model, database, periods = NULL, index_time = "date") {
+
+  env <- compile_model_cpp(model@rcpp_source)
+
+  key <- as.character(database[[index_time]])
+  if (is.null(periods)) {
+    rows <- seq_along(key)[-1L]
+  } else {
+    rows <- match(as.character(periods), key)
+    if (anyNA(rows)) {
+      stop("Periods not found in '", index_time, "': ",
+           paste(as.character(periods)[is.na(rows)], collapse = ", "))
+    }
+  }
+
+  mv <- sort(c(model@exo_list, model@endo_list, model@coeff_list))
+  M <- as.matrix(database[, mv, drop = FALSE])
+  storage.mode(M) <- "double"
+
+  out <- t(vapply(rows, function(r) env$sparse_residuals(M, as.integer(r - 1L)),
+                  numeric(length(env$sparse_residuals(M, as.integer(rows[1] - 1L))))))
+  rownames(out) <- key[rows]
+  out
 }

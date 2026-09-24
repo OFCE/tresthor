@@ -2,12 +2,14 @@
 % Please edit documentation in R/1_11_compile_model.R
 \name{compile_model_cpp}
 \alias{compile_model_cpp}
-\title{Compile a generated model source file}
+\title{Compile a generated model source file and return its functions}
 \usage{
-compile_model_cpp(path, debug = FALSE, quiet = TRUE)
+compile_model_cpp(path, rebuild = FALSE, debug = FALSE, quiet = TRUE)
 }
 \arguments{
 \item{path}{path to the generated .cpp file}
+
+\item{rebuild}{boolean. TRUE to compile even if this file is already loaded.}
 
 \item{debug}{boolean. TRUE to keep \code{-g} (much slower; only useful when
 debugging the code generator itself). Default FALSE.}
@@ -15,10 +17,14 @@ debugging the code generator itself). Default FALSE.}
 \item{quiet}{boolean. TRUE to suppress compiler output. Default TRUE.}
 }
 \value{
-the elapsed time in seconds, invisibly
+an environment holding the model's compiled functions
 }
 \description{
 Compiles with the platform's usual flags minus \code{-g}, by way of a temporary
 \code{R_MAKEVARS_USER} file. The user's own \verb{~/.R/Makevars} is left untouched.
+}
+\details{
+The result is cached per source file, so solving the same model repeatedly
+compiles once per session.
 }
 \keyword{internal}

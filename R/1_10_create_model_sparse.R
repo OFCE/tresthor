@@ -191,7 +191,7 @@ create_model_sparse <- function(model_name = "model",
 
   if (compile) {
     cat("\nStep 6: compiling...\n")
-    el <- compile_model_cpp(rcpp_source)
+    el <- system.time(compile_model_cpp(rcpp_source, rebuild = TRUE))[["elapsed"]]
     cat("   compiled in ", round(el, 1), " s\n", sep = "")
   }
 

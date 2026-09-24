@@ -7,6 +7,10 @@
 cpp_trender(toff)
 }
 \description{
-Render a time offset as a C++ row index
+Variable lag amounts are read out of the data matrix and so arrive as
+doubles. They must be turned back into an integer explicitly: a row index
+of type double makes \code{M(i, j)} resolve to \code{Eigen::IndexedView} rather than
+scalar element access, which does not compile. \code{lround} rather than a plain
+cast, since a whole number stored as a double may be 2.9999999.
 }
 \keyword{internal}

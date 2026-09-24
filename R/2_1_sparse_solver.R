@@ -86,12 +86,12 @@ thor_solver_sparse <- function(model,
     }
   }
 
-  if (!exists("sparse_solver", mode = "function")) {
-    compile_model_cpp(model@rcpp_source)
-  }
+  ## Compiled into its own environment and cached per source file, so that
+  ## several models can be used in one session without clashing.
+  cpp <- compile_model_cpp(model@rcpp_source)
 
   t_run <- system.time({
-    out <- sparse_solver(M,
+    out <- cpp$sparse_solver(M,
                          as.integer(anchor_t - 1L),   # 0-based rows for C++
                          as.integer(final_t - 1L),
                          convergence_criteria,
