@@ -37,7 +37,7 @@ model_equations_remove(
 \item{use.superlu}{boolean. If SUPERLU library is installed, select TRUE to compile a rcpp model with superlu}
 }
 \value{
-a thor.model in the selected environment
+a thor.model in the selected environment, also returned invisibly
 }
 \description{
 Endo-Exo switch

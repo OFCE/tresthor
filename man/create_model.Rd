@@ -45,7 +45,7 @@ create_model(
 \item{use.superlu}{boolean. If SUPERLU library is installed, select TRUE to compile a rcpp model with superlu}
 }
 \value{
-A thoR.model created in the environment.
+A thoR.model created in the environment. The model is also returned invisibly, so it can be assigned directly.
 }
 \description{
 This function creates a thoR.model object by reading a model in text file or specified from a manual input in the function arguments.

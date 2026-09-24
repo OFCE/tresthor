@@ -40,7 +40,7 @@ time_solver_test_run<-function(model , database , index_time = 'date' , times){
 #check time
 if(time_model_checks(database,index_time)==FALSE){stop("Problems with the index_time variable specified.")}
 #check class model
-assertthat::assert_that(class(model)=="thoR.equation"|class(model)=="thoR.model")
+assertthat::assert_that(inherits(model,"thoR.equation")|inherits(model,"thoR.model"))
 #check variables
 if(data_model_checks(model,database)==FALSE){stop("Missing model variables in the database.")}
 
@@ -55,7 +55,7 @@ if (all(times %in% database$TIME) == FALSE){stop( paste0('At least one of ',time
 test_run<-function(time_t){
 test_t <- which(database$TIME == time_t)
 
-if(class(model)=="thoR.model"){
+if(inherits(model,"thoR.model")){
   if(anchor_t == 1){stop("The first period cannot be the first observation the data base. The solver needs a previous full observation to initialize.")}else{
     ##check that the previous period has no na.
     check <-sum(is.na(database[anchor_t-1,model@endo_list]))
@@ -71,7 +71,7 @@ if(class(model)=="thoR.model"){
   }
 
 ##when model is equation
-if(class(model)=="thoR.equation"){
+if(inherits(model,"thoR.equation")){
   if(anchor_t == 1){stop("The first period cannot be the first observation the data base. The solver needs a previous full observation to initialize.")}else{
     ##check that the previous period has no na.
     check <-sum(is.na(database[anchor_t-1,model@endogenous]))

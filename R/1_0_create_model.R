@@ -26,7 +26,7 @@
 #' @param no_var_map boolean. If TRUE, no vat_map we will be built, instead an empty list will be created. Default : FALSE
 #' @param use.superlu boolean. If SUPERLU library is installed, select TRUE to compile a rcpp model with superlu
 #'
-#' @return A thoR.model created in the environment.
+#' @return A thoR.model created in the environment. The model is also returned invisibly, so it can be assigned directly.
 #' @examples
 #' \dontrun{
 #'  create_model("My_Model",model_source_example(TRUE))
@@ -353,4 +353,5 @@ Refer to the documentation for more information."))
   }
 
  cat(" Model successfully built ! \n")
+  invisible(get(model_name, envir = env))
   }##end of function

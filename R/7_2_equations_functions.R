@@ -109,7 +109,7 @@ return<-list(check_safe,ordered_coeff,RHSformula_ec)
 #'
 formula_with_coeffs  <-function(formula,coefflist=NULL,database,round_digits = 4,quiet=FALSE){
   options(scipen = 99)
-    if(class(formula) != "character"){if(class(formula)!="thoR.equation"){stop("formula needs to be a character string of length 1 or a thoR.equation.")} }
+    if(!is.character(formula)){if(!inherits(formula,"thoR.equation")){stop("formula needs to be a character string of length 1 or a thoR.equation.")} }
     if(length(formula)!= 1){stop("formula needs to be a character string of length 1 ")}
     if(class(formula)== "character") { if(class(coefflist) != "character"){stop("If formula is not a thoR.equation object, the coefficients need to specificed as a character vector in coefflist.")}}
 
@@ -118,7 +118,7 @@ formula_with_coeffs  <-function(formula,coefflist=NULL,database,round_digits = 4
       coefflist<-intersect(coefflist,detected_vars)
       string<-formula
    }
-    if(class(formula) == "thoR.equation"){
+    if(inherits(formula,"thoR.equation")){
       string <- formula@formula
       coefflist<- formula@coefflist
     }
@@ -167,7 +167,7 @@ formula_with_coeffs  <-function(formula,coefflist=NULL,database,round_digits = 4
 #' @export
 #'
 equation_from_model<-function(equation_name_or_id,model,endogenous,new_name=NULL,default_maxlag_error = 5,environment = globalenv()){
-  if(class(model)!="thoR.model"){stop("The model must be a thoR.model object.")}
+  if(!inherits(model,"thoR.model")){stop("The model must be a thoR.model object.")}
 
   if(class(equation_name_or_id)!="character"){stop("Expecting a character string for equation_name_or_id.")}
   if(length(equation_name_or_id) !=1){stop("Only one equation at a time can be created.")}

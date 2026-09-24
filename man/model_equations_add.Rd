@@ -33,7 +33,7 @@ model_equations_add(
 \item{use.superlu}{boolean. If SUPERLU library is installed, select TRUE to compile a rcpp model with superlu}
 }
 \value{
-a thor.model in the selected environment
+a thor.model in the selected environment, also returned invisibly
 }
 \description{
 Adds thor.equations to an existing model and builds the model.

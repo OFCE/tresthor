@@ -27,7 +27,7 @@ save_model<-function(model,folder_path=getwd()){
 #' @param source_rcpp Boolean. TRUE if sourcing of the rcpp file is needed
 #'
 #' @importFrom Rcpp sourceCpp
-#' @return loaded model in the environment, ready to be solved.
+#' @return The loaded model, assigned in the environment under its stored model_name and also returned invisibly.
 #' @export
 #'
 load_model<-function(model=NULL,folder_path=getwd(),file=NULL,env=globalenv(),source_rcpp = TRUE){
@@ -47,7 +47,7 @@ load_model<-function(model=NULL,folder_path=getwd(),file=NULL,env=globalenv(),so
 
   assertthat::assert_that(file.exists(file))
   plop<- readRDS(file)
-  assertthat::assert_that(class(readRDS(file))=="thoR.model")
+  assertthat::assert_that(inherits(plop,"thoR.model"))
 
   assign(plop@model_name, plop, envir = env )
 
@@ -56,7 +56,7 @@ load_model<-function(model=NULL,folder_path=getwd(),file=NULL,env=globalenv(),so
     Rcpp::sourceCpp(plop@rcpp_source)
   }
 
-
+  invisible(plop)
 }
 
 #' Export the model as a .txt file
@@ -69,7 +69,7 @@ load_model<-function(model=NULL,folder_path=getwd(),file=NULL,env=globalenv(),so
 #'
 export_model<- function(model, filename ="model.txt"){
 
-  if(class(model)!="thoR.model"){stop("The model must be a thoR.model object.")}
+  if(!inherits(model,"thoR.model")){stop("The model must be a thoR.model object.")}
   assertthat::is.dir(dirname(filename))
   equations_list <- model@equation_list
   equations_to_write<-ifelse(equations_list$name==equations_list$id,equations_list$equation,  paste0(equations_list$name,":",equations_list$equation))

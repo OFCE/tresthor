@@ -24,7 +24,7 @@ load_model(
 \item{source_rcpp}{Boolean. TRUE if sourcing of the rcpp file is needed}
 }
 \value{
-loaded model in the environment, ready to be solved.
+The loaded model, assigned in the environment under its stored model_name and also returned invisibly.
 }
 \description{
 Load a saved model

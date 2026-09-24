@@ -12,7 +12,7 @@
 #' @param env Environment where to store the model object. Default : globalenv()
 #' @param rcpp_path path to directory where to store the rcpp source files for the model. Default : working directory
 #' @param use.superlu boolean. If SUPERLU library is installed, select TRUE to compile a rcpp model with superlu
-#' @return a thor model in the global environment
+#' @return a thor model in the global environment, also returned invisibly
 #' @export
 #' @import Deriv
 #' @import assertthat
@@ -267,6 +267,7 @@ if (rcpp == TRUE){
 }
 
 cat("Model successfully built ! \n")
+invisible(get(new_model_name, envir = env))
 }##end of function
 
 ################REMOVE EQUATIONS
@@ -283,7 +284,7 @@ cat("Model successfully built ! \n")
 #' @param env Environment where to store the model object. Default : globalenv()
 #' @param rcpp_path path to directory where to store the rcpp source files for the model. Default : working directory
 #' @param use.superlu boolean. If SUPERLU library is installed, select TRUE to compile a rcpp model with superlu
-#' @return a thor.model in the selected environment
+#' @return a thor.model in the selected environment, also returned invisibly
 #' @export
 #' @import Deriv
 #' @import assertthat
@@ -567,6 +568,7 @@ model_equations_remove<-function(base_model , new_model_name, equations_to_remov
   }
 
   cat("Model successfully built ! \n")
+  invisible(get(new_model_name, envir = env))
 }##end of function
 
 ################ADD EQUATIONS
@@ -581,7 +583,7 @@ model_equations_remove<-function(base_model , new_model_name, equations_to_remov
 #' @param env Environment where to store the model object. Default : globalenv()
 #' @param rcpp_path path to directory where to store the rcpp source files for the model. Default : working directory
 #' @param use.superlu boolean. If SUPERLU library is installed, select TRUE to compile a rcpp model with superlu
-#' @return a thor.model in the selected environment
+#' @return a thor.model in the selected environment, also returned invisibly
 #' @export
 #' @import Deriv
 #' @import assertthat
@@ -611,7 +613,7 @@ model_equations_add<-function(base_model , new_model_name,
   #### 1.a  New variables
   ################################
   thor_equations_add<-unique(thor_equations_add)
-  if(prod(purrr::map_lgl(thor_equations_add,~class(.x)=="thoR.equation"))==0){stop("Equations added to the model must be of thoR.equation class.")}
+  if(prod(purrr::map_lgl(thor_equations_add,~inherits(.x,"thoR.equation")))==0){stop("Equations added to the model must be of thoR.equation class.")}
 
   new_equations<-unique(purrr::map_chr(thor_equations_add,~.x@formula))
 
@@ -895,4 +897,5 @@ model_equations_add<-function(base_model , new_model_name,
   }
 
   cat("Model successfully built ! \n")
+  invisible(get(new_model_name, envir = env))
 }##end of function

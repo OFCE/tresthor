@@ -37,7 +37,7 @@ model_endo_exo_switch(
 \item{use.superlu}{boolean. If SUPERLU library is installed, select TRUE to compile a rcpp model with superlu}
 }
 \value{
-a thor model in the global environment
+a thor model in the global environment, also returned invisibly
 }
 \description{
 Endo-Exo switch

@@ -7,7 +7,7 @@
 #' @export
 #'
 var_info_model<-function(variables,model){
-  if(class(model)!="thoR.model"){stop("The model must be a thoR.model object.")}
+  if(!inherits(model,"thoR.model")){stop("The model must be a thoR.model object.")}
   if(class(variables)!="character"){stop("The variables must be specified in a string vector.")}
 
   model_var_list <- names(model@var_map)
@@ -47,7 +47,7 @@ display<-purrr::set_names(variables) %>% purrr::map(~print_info(.x))
 #' @export
 #'
 equation_info_model <- function(equations_name_or_id,model){
-  if(class(model)!="thoR.model"){stop("The model must be a thoR.model object.")}
+  if(!inherits(model,"thoR.model")){stop("The model must be a thoR.model object.")}
   if(class(equations_name_or_id)!="character"){stop("The equations must be specified in a string vector.")}
 
 

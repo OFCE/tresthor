@@ -10,7 +10,7 @@
 #' @export
 #'
 data_model_checks <- function(thor_model,database,quiet= TRUE){
-  if(class(thor_model)=="thoR.model"){
+  if(inherits(thor_model,"thoR.model")){
   vars<-names(thor_model@var_map)
   vars_data<-names(database)
 
@@ -26,7 +26,7 @@ data_model_checks <- function(thor_model,database,quiet= TRUE){
   }
 
   ##when model is equation
-  if(class(thor_model)=="thoR.equation"){
+  if(inherits(thor_model,"thoR.equation")){
 
     vars<-c(thor_model@coefflist,thor_model@endogenous,thor_model@exogenous)
     vars_data<-names(database)

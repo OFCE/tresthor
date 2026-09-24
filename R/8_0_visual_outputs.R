@@ -14,7 +14,7 @@
 #' @export
 #'
 simulate_equation<-function(thor_equation, database, start_sim, end_sim, index_time="date", residual_var){
-  if(class(thor_equation)!= "thoR.equation"){stop("thor_equation must be a thoR.equation object.")}
+  if(!inherits(thor_equation,"thoR.equation")){stop("thor_equation must be a thoR.equation object.")}
 
 
   if(!residual_var %in% thor_equation@exogenous){stop("the residual variable must be an exogenous variable of the thor_equation.")}
