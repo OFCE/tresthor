@@ -42,11 +42,10 @@ cat("max |residual|   :", format(max(attr(res, "residuals")), digits = 3), "\n")
 stopifnot(max(attr(res, "convergence")) <= 1)
 
 ## ---- every equation is actually satisfied at the solution ---------------
-mv <- sort(c(m@exo_list, m@endo_list, m@coeff_list))
-M  <- as.matrix(res[, mv]); storage.mode(M) <- "double"
-rows <- which(res$year >= first_period & res$year <= last_period)
-worst <- max(vapply(rows - 1L, function(r) max(sparse_residuals(M, r)), numeric(1)))
+resid <- model_residuals(m, res, periods = first_period:last_period, index_time = "year")
+worst <- max(resid)
 cat("re-checked max |residual| over all blocks/periods:", format(worst, digits = 3), "\n")
+print(apply(resid, 2, max))
 stopifnot(worst < 1e-6)
 
 ## ---- comparison with the dense reference solver -------------------------
@@ -67,6 +66,7 @@ if (nzchar(Sys.getenv("TRESTHOR_COMPARE_DENSE"))) {
       round(t_dense[["elapsed"]], 1), "s\n")
 
   endo <- m@endo_list
+  rows <- which(res$year >= first_period & res$year <= last_period)
   A <- as.matrix(ref[rows, endo]); B <- as.matrix(res[rows, endo])
   sc <- pmax(abs(A), abs(B))
   rel <- abs(A - B) / sc

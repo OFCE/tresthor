@@ -185,8 +185,14 @@ model_residuals <- function(model, database, periods = NULL, index_time = "date"
   M <- as.matrix(database[, mv, drop = FALSE])
   storage.mode(M) <- "double"
 
-  out <- t(vapply(rows, function(r) env$sparse_residuals(M, as.integer(r - 1L)),
-                  numeric(length(env$sparse_residuals(M, as.integer(rows[1] - 1L))))))
+  f <- env$sparse_residuals
+  if (!is.function(f)) {
+    stop("'", basename(model@rcpp_source), "' does not define sparse_residuals(). ",
+         "Rebuild the model with create_model_sparse().")
+  }
+
+  first <- f(M, as.integer(rows[1] - 1L))
+  out <- t(vapply(rows, function(r) f(M, as.integer(r - 1L)), first))
   rownames(out) <- key[rows]
   out
 }
