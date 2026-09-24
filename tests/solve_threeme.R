@@ -15,7 +15,7 @@ library(tresthor)
 ## ---- 1. What to run -------------------------------------------------------
 
 classification <- commandArgs(trailingOnly = TRUE)[1]
-if (is.na(classification)) classification <- "4x4"
+if (is.na(classification)) classification <- "8x8"
 
 model_file <- file.path("tests", paste0("threeme_", classification, "_thor.txt"))
 data_file  <- file.path("tests", paste0("data3me_", classification, ".rds"))
